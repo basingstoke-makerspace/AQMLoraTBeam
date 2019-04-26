@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <HardwareSerial.h>
 #include <encoder.hpp>
+#include <ttnotaa.hpp>
 
 // The sensors namespace is shared by all sensors
 
@@ -48,12 +49,15 @@ namespace sensors
 
     const size_t    SDS011_SERIAL_HARDWAREBUFFERSIZE = 32;
 
-    // There is a 'warm up' time, for which the sensor needs to be continuously powered before it is
-    // safe to read from it.
-    const uint32_t  SDS011_WARMUP = 15000;
+    // There is a 'wake up' time, for which the sensor needs to be continuously powered before it is
+    // safe to read from it. Time in ms.
+    const uint32_t  SDS011_WAKEUP = 15000;
 
-    // There is a maximum time allowed for a read to complete.
+    // There is a maximum time allowed for a read to complete. Time in ms.
     const uint32_t  SDS011_MAX_READ_TIME = 5000;
+
+    // Should we stop this sensor after a reading ?
+    constexpr bool  SDS011_STOP_SENSOR = ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( ttnotaa::TX_INTERVAL*1000 );
 
     // Which readings are given by this sensor ?
     const uint8_t   SDS011_READINGS = encoder::DATA_CONTAINS_PM2V5 | encoder::DATA_CONTAINS_PM10 ;
@@ -108,7 +112,7 @@ namespace sensors
     const int       SDS011_RESP_PM10HI_POS  = 5;
     const int       SDS011_RESP_ID0_POS     = 6;
     const int       SDS011_RESP_ID1_POS     = 7;
-    const int       SDS011_RESP_CRC_POS     = 8;
+    const int       SDS011_RESP_CHK_POS     = 8;
     const int       SDS011_RESP_TAIL_POS    = 9;
     const int       SDS011_RESP_SIZE        = 10;
 
@@ -118,10 +122,24 @@ namespace sensors
 
     // sensor interface
     //***********************************
-    bool sensorSDS011Init( void );
-    int  sensorSDS011GetMsg( uint8_t* bufferPtr );
-    bool sensorSDS011SendCommand( uint32_t cmd);
-    int  sensorSDS011Read( uint8_t readingMask );
+
+    struct  sensorSDS011Readings
+    {
+        uint32_t    timestamp;
+        int         pm2v5;
+        int         pm10;
+        int         id;
+    };
+
+    bool    sensorSDS011Init( void );
+    bool    sensorSDS011Checkwait( void );
+    int     sensorSDS011ReadByte( void );
+    bool    sensorSDS011SkipUntilByte( int target );
+    bool    sensorSDS011ValidateMsg( int* msgPtr );
+    bool    sensorSDS011GetReadings( void );
+    bool    sensorSDS011SendCommand( uint32_t cmd);
+    bool    sensorSDS011Read( uint8_t readingMask, int* valuePtr );
+    void    sensorSDS011Wakeup( void );
 
     /*****************************************************
     * Sensor DHT
@@ -135,20 +153,28 @@ namespace sensors
    // sensor interface
    //***********************************
     bool sensorDHTInit( void );
-    int  sensorDHTRead( uint8_t readingMask );
+    bool sensorDHTGetReadings( void );
+    bool sensorDHTRead( uint8_t readingMask, int* valuePtr );
+    void sensorDHTWakeup( void );
 
-    /*****************************************************/
+    /*****************************************************
+    * Sensor Common
+    ******************************************************/
 
     struct sensordescriptor
     {
-        uint8_t id;
-        uint8_t readings;
+        uint8_t     id;
+        uint8_t     readings;
+        bool        needsWakeup;
+        uint32_t    wakeupMilliseconds;
+        uint32_t    maxReadtime;
+        bool        (*triggerFunc)(void);
     };
 
     const struct sensordescriptor sensorDescriptors[ NUM_SENSORS ] =
     {
-        { SENSOR_ID_SDS011, SDS011_READINGS },
-        { SENSOR_ID_DHT, DHT_READINGS }
+        { SENSOR_ID_SDS011, SDS011_READINGS, true, SDS011_WAKEUP, SDS011_MAX_READ_TIME, sensorSDS011GetReadings },
+        { SENSOR_ID_DHT, DHT_READINGS, false, 0, 0, sensorDHTGetReadings }
     };
 
     // non const - can only be worked out at runtime
@@ -156,9 +182,13 @@ namespace sensors
 
    // sensor interface
    //***********************************
-    bool initSensors( void );
-    int  sensorValid( uint8_t readingRequired );
-    int  sensorRead( int sensorId, uint8_t readingMask );
+    bool        sensorInitSensors( void );
+    int         sensorValid( uint8_t readingRequired );
+    bool        sensorReading( int sensorId, uint8_t readingMask, int* valuePtr );
+    uint32_t    sensorMaxWakeup( void );
+    uint32_t    sensorMaxReadtime( void );
+    void        sensorWakeup( void );
+    bool        sensorTrigger( void );
 
     template<typename T, std::size_t N> constexpr std::size_t array_num_elements(const T(&)[N]) {
 	       return N; }

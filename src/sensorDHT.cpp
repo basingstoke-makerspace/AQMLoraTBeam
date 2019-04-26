@@ -16,6 +16,13 @@
 
 using namespace sensors;
 
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
 bool sensors::sensorDHTInit( void )
 {
     sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] = true;
@@ -23,7 +30,37 @@ bool sensors::sensorDHTInit( void )
     return true;
 }
 
-int sensors::sensorDHTRead( uint8_t readingMask )
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+bool sensors::sensorDHTRead( uint8_t readingMask, int* valuePtr )
 {
-    return 0;
+    return true;
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void sensors::sensorDHTWakeup( void )
+{
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+bool sensors::sensorDHTGetReadings( void )
+{
+    return true;
 }

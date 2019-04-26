@@ -27,6 +27,63 @@ using namespace sensors;
 
 bool sensors::sensorStatus[ sensors::NUM_SENSORS ];
 
+/**
+* @brief
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+uint32_t sensors::sensorMaxReadtime( void )
+{
+uint32_t maxVal = 0;
+uint32_t val;
+
+    for( int i=0; i<sensors::NUM_SENSORS; i++)
+    {
+        val = sensors::sensorDescriptors[i].maxReadtime;
+
+        if( maxVal < val )
+        {
+            maxVal = val;
+        }
+    }
+
+    return maxVal;
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+uint32_t sensors::sensorMaxWakeup( void )
+{
+uint32_t maxVal = 0;
+uint32_t val;
+
+    for( int i=0; i<sensors::NUM_SENSORS; i++)
+    {
+        val = sensors::sensorDescriptors[i].wakeupMilliseconds;
+
+        if( maxVal < val )
+        {
+            maxVal = val;
+        }
+    }
+
+    return maxVal;
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
 int sensors::sensorValid( uint8_t readingRequired )
 {
 int retVal = -1;
@@ -55,7 +112,14 @@ int retVal = -1;
     return retVal;
 }
 
-bool sensors::initSensors( void )
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+bool sensors::sensorInitSensors( void )
 {
     // just make sure we start in a known state
     for( int i=0; i<sensors::NUM_SENSORS; i++ )
@@ -73,27 +137,70 @@ bool sensors::initSensors( void )
                 sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] ) ;
 }
 
-int sensors::sensorRead( int sensorId, uint8_t readingMask )
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+bool sensors::sensorReading( int sensorId, uint8_t readingMask, int* valuePtr )
 {
-int retVal = 0xDEADBEEF;
+int retVal = false;
 
     // assume that the combination of sensorId and readingMask is valid
-    // NB allow for the possibility here that we may need to deal with a
-    // negative quantity, hence the integer as opposed to uint.
 
     switch( sensorId )
     {
     case SENSOR_ID_SDS011:
         {
-            retVal = sensors::sensorSDS011Read( readingMask );
+            retVal = sensors::sensorSDS011Read( readingMask, valuePtr );
             break;
         }
     case SENSOR_ID_DHT:
         {
-            retVal = sensors::sensorDHTRead( readingMask );
+            retVal = sensors::sensorDHTRead( readingMask, valuePtr );
             break;
         }
     }
 
     return retVal;
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+bool sensors::sensorTrigger( void )
+{
+bool retVal = false;
+
+    // trigger all sensors to provide readings
+
+    for( int i=0; i<sensors::NUM_SENSORS; i++ )
+    {
+        if( !sensors::sensorDescriptors[i].triggerFunc() )
+        {
+            retVal = false;
+            break;
+        }
+    }
+
+    return retVal;
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void sensors::sensorWakeup( void )
+{
+    sensors::sensorSDS011Wakeup();
+    sensors::sensorDHTWakeup();
 }

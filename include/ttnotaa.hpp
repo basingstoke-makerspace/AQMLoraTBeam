@@ -6,15 +6,16 @@
  * to do whatever they want with them without any restriction,
  * including, but not limited to, copying, modification and redistribution.
  * NO WARRANTY OF ANY KIND IS PROVIDED.
+ *
+ * Only need this namespace for sharing of const things originally in
+ * ttn-otaa.ino.
  */
 
 #pragma once
 
-#include <cstdint>
-#include <encoder.hpp>
-
-namespace getreadings
+namespace ttnotaa
 {
-    bool getReading( int* valuePtr, uint8_t readingMask );
-    uint8_t getReadings( struct encoder::readings* readingsPtr );
+    // Schedule TX every this many seconds (might become longer due to duty
+    // cycle limitations).
+    const uint32_t  TX_INTERVAL = 120;
 }

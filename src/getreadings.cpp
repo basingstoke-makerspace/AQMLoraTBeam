@@ -21,10 +21,17 @@ extern  const unsigned TX_INTERVAL;
 
 using namespace getreadings;
 
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
 bool getreadings::getReading( int* valuePtr, uint8_t readingMask )
 {
-bool    retVal;
-int     sensorId;
+bool    retVal = false;
+int     sensorId = 0xDEADBEEF;
 
     // is this a reading that we expect to return ?
     if( encoder::datamask & readingMask )
@@ -32,17 +39,15 @@ int     sensorId;
         // do we have a working sensor that can provide this reading ?
         if( ( sensorId = sensors::sensorValid(readingMask) ) > -1 )
         {
-            // get reading from the sensor
+            // get the latest reading
 
             // *******************************************************************************
             // *** NB this works only so long as a reading can be represented as an int :) ***
             // *******************************************************************************
 
-            *valuePtr = sensors::sensorRead( sensorId, readingMask );
-
-            if( *valuePtr == 0xDEADBEEF )
+            if( sensors::sensorReading( sensorId, readingMask, valuePtr ) )
             {
-                // uart error
+                // reading error
                 retVal = false;
             }
             else
@@ -65,6 +70,13 @@ int     sensorId;
 
     return retVal;
 }
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
 
 uint8_t getreadings::getReadings( struct encoder::readings* readingsPtr )
 {
@@ -108,7 +120,7 @@ uint8_t retMask = 0;
     // We don't care when, within the sampling interval, the measurement actually
     // happens, only that it can happen before we need to perform another read.
 
-    if( ( sensors::SDS011_WARMUP + sensors::SDS011_MAX_READ_TIME ) < ( TX_INTERVAL*1000 ) )
+    if( ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( TX_INTERVAL*1000 ) )
     {
         sensors::sensorSDS011SendCommand( sensors::SDS011_CMDID_STOP );
     }

@@ -330,5 +330,6 @@ bool        retVal = true;
 
 void sensors::sensorSDS011Wakeup( void )
 {
+    Serial.println(F("Waking up SDS011"));
     sensorSDS011SendCommand( sensors::SDS011_CMDID_START );
 }

@@ -51,6 +51,7 @@ bool sensors::sensorDHTRead( uint8_t readingMask, int* valuePtr )
 
 void sensors::sensorDHTWakeup( void )
 {
+    Serial.println("Waking up DHT");
 }
 
 /**

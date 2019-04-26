@@ -16,8 +16,7 @@
 #include <encoder.hpp>
 #include <getreadings.hpp>
 #include <sensors.hpp>
-
-extern  const unsigned TX_INTERVAL;
+#include <ttnotaa.hpp>
 
 using namespace getreadings;
 
@@ -120,7 +119,7 @@ uint8_t retMask = 0;
     // We don't care when, within the sampling interval, the measurement actually
     // happens, only that it can happen before we need to perform another read.
 
-    if( ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( TX_INTERVAL*1000 ) )
+    if( ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( ttnotaa::TX_INTERVAL*1000 ) )
     {
         sensors::sensorSDS011SendCommand( sensors::SDS011_CMDID_STOP );
     }

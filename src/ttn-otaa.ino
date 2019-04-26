@@ -45,8 +45,7 @@ static const u1_t PROGMEM APPEUI[8]={ 0xDF, 0xAF, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // This should also be in little endian format, see above.
-// 00 A1 3E 3F C6 41 4F F7
-static const u1_t PROGMEM DEVEUI[8]={ 0xF7, 0x4F, 0x41, 0xC6, 0x3F, 0x3E, 0xA1, 0x00 };
+static const u1_t PROGMEM DEVEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x01, 0xAF, 0xDF };
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // This key should be in big endian format (or, since it is not really a
@@ -188,6 +187,7 @@ void onEvent (ev_t ev)
 
 void do_sensorread_phase1(osjob_t* j)
 {
+    Serial.println(F("Job ReadPhase1"));
     // This phase just exists to wake up any sensors that
     // need waking up.
     sensors::sensorWakeup();
@@ -203,6 +203,7 @@ void do_sensorread_phase1(osjob_t* j)
 void do_sensorread_phase2(osjob_t* j)
 {
     // This is the phase that reads from the sensors.
+    Serial.println(F("Job ReadPhase2"));
 
     // Interlock -
     // If there is a transmission in progress and hence a risk that the output buffer may be
@@ -281,8 +282,6 @@ void setup()
     // See https://circuits4you.com/2018/12/31/esp32-hardware-serial2-example/
     Serial.begin(115200);
 
-    while( !Serial ){}
-
     Serial.println(F("Starting"));
     Serial.println(F("120"));
 
@@ -296,11 +295,18 @@ void setup()
     if ( sensors::sensorInitSensors() )
     {
         // Note that we have not scheduled any timed jobs yet.
-        // Note that this first sensor read occurs before OTAA,
-        // this will be triggered when the sensor read has
-        // completed.
 
-        do_sensorread_phase1(&sensorreadphase1job);
+        // Further scheduling of jobs occurs on receipt of EV_TXCOMPLETE
+
+        // To kick off, send blank message
+        bytesUsed = ( ( encoder::BITS_FOR_DATAMASK +
+                        encoder::BITS_FOR_PM2V5 +
+                        encoder::BITS_FOR_PM10 +
+                        encoder::BITS_FOR_TEMP +
+                        encoder::BITS_FOR_RELH ) +8 )/8 ;
+
+        // Start job (sending automatically starts OTAA too)
+        do_send(&sendjob);
     }
     else
     {

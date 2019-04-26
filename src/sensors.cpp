@@ -121,6 +121,8 @@ int retVal = -1;
 
 bool sensors::sensorInitSensors( void )
 {
+    Serial.println(F("Initialising sensors"));
+
     // just make sure we start in a known state
     for( int i=0; i<sensors::NUM_SENSORS; i++ )
     {

@@ -19,18 +19,30 @@
 
 using namespace encoder;
 
+/**
+* @brief Get the byte and bitmask for a particular bit in buffer.
+* @param [in] bitPosition - the bit position ( 0 offset ) for which a byte and mask are required.
+* @return N/A
+* @details The model used here is that bits in a buffer are used 'MS first'.
+* In other words, for two adjacent bytes in the buffer, bit 7 of
+* byte N+1 is written after bit 0 of byte N, as opposed to bit 0 of byte
+* N+1 being written after bit 7 of byte N. This is in order to
+* minimise the number of bits that must be transmitted. However, it's
+* not entirely clear if Lora actually deals in bits when sending.
+*/
+
 void encoder::getBit( int bitPosition, int* byteOffsetPtr, uint8_t* maskPtr )
 {
-    // The model used here is that bits in a buffer are used 'MS first'.
-    // In other words, for two adjacent bytes in the buffer, bit 7 of
-    // byte N+1 is written after bit 0 of byte N, as opposed to bit 0 of byte
-    // N+1 being written after bit 7 of byte N. This is in order to
-    // minimise the number of bits that must be transmitted. However, it's
-    // not entirely clear if Lora actually deals in bits when sending.
-
     *byteOffsetPtr = bitPosition/8;
     *maskPtr = 0xF0 >> (bitPosition % 8);
 }
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
 
 int encoder::writeBitfield( uint8_t maskBit, int value, int* currentBitPositionPtr, uint8_t* outputBufferPtr, uint8_t validValuesMask)
 {
@@ -90,6 +102,13 @@ int retVal;
 
     return retVal;
 }
+
+/**
+* @brief Turn readings into a bitfield structured buffer
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
 
 int encoder::encode( uint8_t* outputBufferPtr, struct encoder::readings* valuesPtr, uint8_t validValuesMask )
 {

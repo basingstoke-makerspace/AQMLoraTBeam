@@ -21,10 +21,13 @@
 using namespace getreadings;
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Get the current value of a particular reading
+* @param [in] - readingMask- provides identity of the reading requested
+*        [out]  valuePtr   - pointer to the value of the reading
+* @return true if valid reading was obtained from sensor interface, else false.
+* @details Use the readingMask to identify a sensor that can provide the requested
+* reading, and then request this reading from the particular sensor. A sensor may
+* supply several readings, so also provide the readingMask to the sensor.
 */
 
 bool getreadings::getReading( int* valuePtr, uint8_t readingMask )
@@ -71,10 +74,12 @@ int     sensorId = 0xDEADBEEF;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Assemble available readings, recording the ones available.
+* @param [in] readingsPtr - a convenience structure for passing available readings to the encoder.
+* @return A bitmap of the readings which are actually valid.
+* @details Retrieve current value of reading for all known parameters, and set a flag for each
+* reading that is valid. Stop any currently powered on sensors where possible. This function can
+* only be called again after wakeup.
 */
 
 uint8_t getreadings::getReadings( struct encoder::readings* readingsPtr )

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 
 #include <lmic.h>
+#include <hal/hal.h>
 
 #include <getreadings.hpp>
 #include <sensors.hpp>
@@ -49,7 +50,6 @@ bool sensors::sensorSDS011Init(void)
     Serial2.setRxBufferSize( sensors::SDS011_SERIAL_HARDWAREBUFFERSIZE );
 
     sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] = true;
-
 
     return true;
 }
@@ -87,12 +87,13 @@ bool        retVal;
     if( totalWaitSeconds > (sensors::SDS011_MAX_READ_TIME/1000 ) )
     {
         // we can't wait any longer
+        Serial.println(F("Maximum wait exceeded"));
         totalWaitSeconds = 0;
         retVal = false;
     }
     else
     {
-        Serial.print(F("Waiting for reading..."));
+        Serial.println(F("Waiting for reading..."));
         delay(1);
         retVal = true;
     }
@@ -118,7 +119,7 @@ int byte=0xDEADBEEF;
         if( -1 == byte )
         {
             // we're doomed....
-            Serial.print(F("UART Error 3"));
+            Serial.println(F("UART Error 3"));
             exit(-1);
         }
     }
@@ -187,6 +188,10 @@ int     msgChk = 0;
     {
         retVal = true;
     }
+    else
+    {
+        Serial.println(F("Checksum Invalid"));
+    }
 
     return retVal;
 }
@@ -228,6 +233,7 @@ int  i=0;
         if( 0xDEADBEEF == rxBuffer[i] )
         {
             // our bytes have disappeared, we're doomed...
+            Serial.println(F("UART buffer problem, exiting"));
             exit(-1);
         }
     }
@@ -315,6 +321,7 @@ bool        retVal = true;
     }
     else
     {
+        Serial.println(F("Invalid parameter requested"));
         retVal = false;
     }
 

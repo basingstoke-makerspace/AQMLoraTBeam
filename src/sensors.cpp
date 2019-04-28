@@ -108,7 +108,12 @@ int retVal = -1;
         }
     }
 
-    // sensor is bad OR we didn't find that reading
+    if( -1 == retVal )
+    {
+        // sensor is bad OR we didn't find that reading
+        Serial.println(F("Sensor or parameter not valid"));
+    }
+
     return retVal;
 }
 
@@ -186,6 +191,9 @@ bool retVal = false;
     {
         if( !sensors::sensorDescriptors[i].triggerFunc() )
         {
+            // failed to trigger a sensor
+            Serial.println(F("Sensor failed to trigger"));
+
             retVal = false;
             break;
         }

@@ -74,7 +74,7 @@ namespace sensors
     const uint32_t  SDS011_CMDID_CONTINUOUSMODE  = 2;
     const uint32_t  SDS011_CMDID_VERSION         = 3;
 
-    // Table of Strings for various commands
+    // Byte sequences for commands
 	const uint8_t  SDS011_CMD_START[] =
     {
         0xAA, 0xB4, 0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x06, 0xAB

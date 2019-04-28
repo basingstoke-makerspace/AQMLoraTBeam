@@ -30,8 +30,8 @@
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
-
 #include <cstdint>
+
 #include <encoder.hpp>
 #include <getreadings.hpp>
 #include <sensors.hpp>

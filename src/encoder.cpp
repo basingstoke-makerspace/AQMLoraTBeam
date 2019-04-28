@@ -15,6 +15,9 @@
  *
  *******************************************************************************/
 
+#include <cstdint>
+#include <HardwareSerial.h>
+
 #include <encoder.hpp>
 
 using namespace encoder;
@@ -97,6 +100,7 @@ int retVal;
     }
     else
     {
+        Serial.println(F("Parameter unavailable"));
         retVal = 0;
     }
 

@@ -50,6 +50,7 @@ int     sensorId = 0xDEADBEEF;
             if( sensors::sensorReading( sensorId, readingMask, valuePtr ) )
             {
                 // reading error
+                Serial.println(F("Reading Error"));
                 retVal = false;
             }
             else
@@ -61,12 +62,14 @@ int     sensorId = 0xDEADBEEF;
         {
             // We are expecting to be able to return a value, but the
             // sensor has failed in some way.
+            Serial.println(F("Sensor Failure"));
             retVal = false;
         }
     }
     else
     {
         // not configured to use this reading
+        Serial.println(F("Sensor not configured"));
         retVal = false;
     }
 

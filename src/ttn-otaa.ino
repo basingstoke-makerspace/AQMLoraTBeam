@@ -269,12 +269,12 @@ void do_sensorread_phase2(osjob_t* j)
         }
         else
         {
-            Serial.println(F("READING SKIPPED 1"));
+            Serial.println(F("ReadPhase2 READING SKIPPED 1"));
         }
     }
     else
     {
-        Serial.println(F("READING SKIPPED 2"));
+        Serial.println(F("ReadPhase2 READING SKIPPED 2"));
     }
 }
 
@@ -288,6 +288,8 @@ void do_sensorread_phase2(osjob_t* j)
 
 void do_send(osjob_t* j)
 {
+    Serial.println(F("Job Send"));
+
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND)
     {

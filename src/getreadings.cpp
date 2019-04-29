@@ -30,7 +30,7 @@ using namespace getreadings;
 * supply several readings, so also provide the readingMask to the sensor.
 */
 
-bool getreadings::getReading( int* valuePtr, uint8_t readingMask )
+bool getreadings::getReading( int* valuePtr, uint16_t readingMask )
 {
 bool    retVal = false;
 int     sensorId = 0xDEADBEEF;
@@ -69,7 +69,10 @@ int     sensorId = 0xDEADBEEF;
     else
     {
         // not configured to use this reading
-        Serial.println(F("Sensor not configured"));
+        Serial.print(F("Reading 0x"));
+        Serial.print(readingMask, HEX);
+        Serial.println(F(" not configured"));
+
         retVal = false;
     }
 
@@ -85,9 +88,9 @@ int     sensorId = 0xDEADBEEF;
 * only be called again after wakeup.
 */
 
-uint8_t getreadings::getReadings( struct encoder::readings* readingsPtr )
+uint16_t getreadings::getReadings( struct encoder::readings* readingsPtr )
 {
-uint8_t retMask = 0;
+uint16_t retMask = 0;
 
     if( getReading( &readingsPtr->pm2v5, encoder::DATA_CONTAINS_PM2V5 ) )
     {
@@ -117,6 +120,21 @@ uint8_t retMask = 0;
     if( getReading( &readingsPtr->co2, encoder::DATA_CONTAINS_CO2 ) )
     {
         retMask |= encoder::DATA_CONTAINS_CO2;
+    }
+
+    if( getReading( &readingsPtr->lat, encoder::DATA_CONTAINS_LAT ) )
+    {
+        retMask |= encoder::DATA_CONTAINS_LAT;
+    }
+
+    if( getReading( &readingsPtr->lon, encoder::DATA_CONTAINS_LON ) )
+    {
+        retMask |= encoder::DATA_CONTAINS_LON;
+    }
+
+    if( getReading( &readingsPtr->alt, encoder::DATA_CONTAINS_ALT ) )
+    {
+        retMask |= encoder::DATA_CONTAINS_ALT;
     }
 
     // If we can, then stop the sensors, i.e. enter a lower power state. The

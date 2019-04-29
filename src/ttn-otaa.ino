@@ -182,6 +182,44 @@ void onEvent (ev_t ev)
 }
 
 /**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void do_encode(void)
+{
+struct encoder::readings values;
+uint16_t validValuesMask = 0;
+
+    // Attempt to get the readings specified by encoder::datamask
+    // Note that we may not get all the readings we expect if the sensor
+    // did not respond to the trigger.
+    validValuesMask = getreadings::getReadings( &values );
+
+    Serial.print(F("Valid readings 0x"));
+    Serial.println(validValuesMask, HEX);
+
+    // clean the output buffer
+    memset( mydata, 0, encoder::MAX_BUFFER_BYTES );
+
+    // Only encode the set of readings which were actually valid
+    bytesUsed = encoder::encode( mydata, &values, validValuesMask );
+
+    Serial.print(F("Bytes used : "));
+    Serial.println(bytesUsed);
+    Serial.print(F("Message ( hex bytes ) : "));
+    int i;
+    for( i=0; i<(bytesUsed-1) ; i++ )
+    {
+        Serial.print(mydata[i],HEX);
+        Serial.print(",");
+    }
+    Serial.println(mydata[i],HEX);
+}
+
+/**
 * @brief First actions for a sensor reading.
 * @param [in] j - OS context info for this job
 * @return N/A
@@ -226,25 +264,8 @@ void do_sensorread_phase2(osjob_t* j)
         // Cause the sensors to provide readings
         if( sensors::sensorTrigger() )
         {
-        struct encoder::readings values;
-        uint8_t validValuesMask = 0;
-
-            // Attempt to get the readings specified by encoder::datamask
-            // Note that we may not get all the readings we expect if the sensor
-            // did not respond to the trigger.
-            validValuesMask = getreadings::getReadings( &values );
-
-            Serial.print(F("Valid readings "));
-            Serial.println(validValuesMask);
-
-            // clean the output buffer
-            memset( mydata, 0, encoder::MAX_BUFFER_BYTES );
-
-            // Only encode the set of readings which were actually valid
-            bytesUsed = encoder::encode( mydata, &values, validValuesMask );
-
-            Serial.print(F("Bytes used "));
-            Serial.println(bytesUsed);
+            // encode the readings in the output buffer
+            do_encode();
         }
         else
         {
@@ -296,8 +317,8 @@ void setup( void )
     // See https://circuits4you.com/2018/12/31/esp32-hardware-serial2-example/
     Serial.begin(115200);
 
-    Serial.println(F("Starting"));
-    Serial.println(F("120"));
+    Serial.print(F("Starting, LORA tx interval (s) : "));
+    Serial.println(ttnotaa::TX_INTERVAL);
 
     // LMIC init
     os_init();
@@ -309,15 +330,10 @@ void setup( void )
     if ( sensors::sensorInitSensors() )
     {
         // Note that we have not scheduled any timed jobs yet.
+        // Further scheduling of jobs occurs on receipt of EV_TXCOMPLETE.
 
-        // Further scheduling of jobs occurs on receipt of EV_TXCOMPLETE
-
-        // To kick off, send blank message
-        bytesUsed = ( ( encoder::BITS_FOR_DATAMASK +
-                        encoder::BITS_FOR_PM2V5 +
-                        encoder::BITS_FOR_PM10 +
-                        encoder::BITS_FOR_TEMP +
-                        encoder::BITS_FOR_RELH ) +8 )/8 ;
+        // To kick off, encode a blank message - no sensor readings have yet been triggered
+        do_encode();
 
         // Start job (sending automatically starts OTAA too)
         do_send(&sendjob);

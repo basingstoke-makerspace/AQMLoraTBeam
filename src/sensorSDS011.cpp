@@ -51,6 +51,8 @@ bool sensors::sensorSDS011Init(void)
 
     sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] = true;
 
+    Serial.println(F("Sensor SDS011 Init OK"));
+
     return true;
 }
 
@@ -87,13 +89,13 @@ bool        retVal;
     if( totalWaitSeconds > (sensors::SDS011_MAX_READ_TIME/1000 ) )
     {
         // we can't wait any longer
-        Serial.println(F("Maximum wait exceeded"));
+        Serial.println(F("SDS011 Maximum wait exceeded"));
         totalWaitSeconds = 0;
         retVal = false;
     }
     else
     {
-        Serial.println(F("Waiting for reading..."));
+        Serial.println(F("SDS011 Waiting for reading..."));
         delay(1);
         retVal = true;
     }
@@ -119,7 +121,7 @@ int byte=0xDEADBEEF;
         if( -1 == byte )
         {
             // we're doomed....
-            Serial.println(F("UART Error 3"));
+            Serial.println(F("SDS011 UART Error 3"));
             exit(-1);
         }
     }
@@ -190,17 +192,18 @@ int     msgChk = 0;
     }
     else
     {
-        Serial.println(F("Checksum Invalid"));
+        Serial.println(F("SDS011 Checksum Invalid"));
     }
 
     return retVal;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Communicate with the sensor to get new readings
+* @param [in] None
+* @return true if all readings OK, else false
+* @details Read all readings that this sensor is configured
+* to supply. Shutdown the sensor afterwards if possible.
 */
 
 bool sensors::sensorSDS011GetReadings( void )
@@ -233,7 +236,7 @@ int  i=0;
         if( 0xDEADBEEF == rxBuffer[i] )
         {
             // our bytes have disappeared, we're doomed...
-            Serial.println(F("UART buffer problem, exiting"));
+            Serial.println(F("SDS011 UART buffer problem, exiting"));
             exit(-1);
         }
     }
@@ -281,7 +284,7 @@ int  i=0;
         sensorSDS011LatestReadings.pm10         = 0xDEADBEEF;
         sensorSDS011LatestReadings.id           = 0xDEADBEEF;
 
-        Serial.println(F("Failed to find message"));
+        Serial.println(F("SDS011 Failed to find message"));
     }
 
     // If we can, then stop the sensor. The decision is based on the sampling
@@ -321,7 +324,7 @@ bool        retVal = true;
     }
     else
     {
-        Serial.println(F("Invalid parameter requested"));
+        Serial.println(F("SDS011 Invalid parameter requested"));
         retVal = false;
     }
 

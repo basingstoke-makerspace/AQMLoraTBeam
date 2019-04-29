@@ -84,7 +84,7 @@ uint32_t val;
 * @details <details>
 */
 
-int sensors::sensorValid( uint8_t readingRequired )
+int sensors::sensorValid( uint16_t readingRequired )
 {
 int retVal = -1;
 
@@ -111,7 +111,8 @@ int retVal = -1;
     if( -1 == retVal )
     {
         // sensor is bad OR we didn't find that reading
-        Serial.println(F("Sensor or parameter not valid"));
+        Serial.print(F("Sensor or parameter not valid 0x"));
+        Serial.println( readingRequired, HEX );
     }
 
     return retVal;
@@ -138,10 +139,12 @@ bool sensors::sensorInitSensors( void )
     // and use the ones that work.
     sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ]  = sensorSDS011Init();
     sensors::sensorStatus[ sensors::SENSOR_ID_DHT ]     = sensorDHTInit();
+    sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ]   = sensorNEO6MInit();
 
     // Tell the caller if something failed
     return (    sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] &&
-                sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] ) ;
+                sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] &&
+                sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ]) ;
 }
 
 /**
@@ -213,4 +216,5 @@ void sensors::sensorWakeup( void )
 {
     sensors::sensorSDS011Wakeup();
     sensors::sensorDHTWakeup();
+    sensors::sensorNEO6MWakeup();
 }

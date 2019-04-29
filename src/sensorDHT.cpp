@@ -27,6 +27,8 @@ bool sensors::sensorDHTInit( void )
 {
     sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] = true;
 
+    Serial.println(F("Sensor DHT Init OK"));
+
     return true;
 }
 

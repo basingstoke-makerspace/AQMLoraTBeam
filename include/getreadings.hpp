@@ -15,6 +15,6 @@
 
 namespace getreadings
 {
-    bool getReading( int* valuePtr, uint8_t readingMask );
-    uint8_t getReadings( struct encoder::readings* readingsPtr );
+    bool getReading( int* valuePtr, uint16_t readingMask );
+    uint16_t getReadings( struct encoder::readings* readingsPtr );
 }

@@ -12,4 +12,7 @@ framework appears sufficient at this time.
 
 Code is currently C-stylee, switch to C++-stylee may happen after core functionality is verified.
 
-
+Although inspired by the Luftdaten project, this code ( with the exception of some LMIC structure ) is
+a complete ground-up redesign. This is because (a) It was just more fun that way (b) I wanted to use a
+permissive non-GPL licence (c) Adding Lorawan support to the Luftdaten codebase seemed like it would be
+as much effort as starting with the LMIC code and adding sensors. 

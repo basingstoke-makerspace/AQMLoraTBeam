@@ -12,8 +12,18 @@
  *
  *******************************************************************************/
 
-#include <sensors.hpp>
+/**
+* @file sensorNEO6M.cpp
+* @author MdeR
+* @date 26 Apr 2019
+* @copyright 2019 MdeR
+* @brief This file defines data and code for the purpose of configuring ( initialising )
+* and reading from the NEO6M GPS sensor.
+*/
+
 #include <TinyGPS++.h>
+
+#include <sensors.hpp>
 
 using namespace sensors;
 
@@ -34,7 +44,7 @@ bool sensors::sensorNEO6MInit( void )
 {
     Serial1.begin(9600, SERIAL_8N1, 12, 15);   //17-TX 18-RX
 
-    Serial2.setRxBufferSize( sensors::NEO6M_SERIAL_HARDWAREBUFFERSIZE );
+    Serial1.setRxBufferSize( sensors::NEO6M_SERIAL_HARDWAREBUFFERSIZE );
 
     sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] = true;
 
@@ -44,15 +54,39 @@ bool sensors::sensorNEO6MInit( void )
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Return the current value of the specified reading
+* @param [in]   readingMask - set bit specifies reading required
+*        [out]  valuePtr    - pointer to var to hold reading
+* @return true if reading was found, else false
+* @details Get the reading value requested from the private
+* data store which was filled by the GetReadings function.
 */
 
-bool sensors::sensorNEO6MRead( uint8_t readingMask, int* valuePtr )
+bool sensors::sensorNEO6MRead( uint16_t readingMask, int* valuePtr )
 {
-    return true;
+bool retVal = true;
+
+    if( readingMask & encoder::DATA_CONTAINS_LAT )
+    {
+        *valuePtr = sensorNEO6MLatestReadings.lat;
+    }
+    else
+    if( readingMask & encoder::DATA_CONTAINS_LON )
+    {
+        *valuePtr = sensorNEO6MLatestReadings.lon;
+    }
+    else
+    if( readingMask & encoder::DATA_CONTAINS_ALT )
+    {
+        *valuePtr = sensorNEO6MLatestReadings.alt;
+    }
+    else
+    {
+        Serial.println(F("NEO6M Invalid reading requested"));
+        retVal = false;
+    }
+
+    return retVal;
 }
 
 /**

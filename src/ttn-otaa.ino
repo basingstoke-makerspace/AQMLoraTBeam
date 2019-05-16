@@ -27,10 +27,20 @@
  *
  *******************************************************************************/
 
+/**
+* @file ttn-otaa.cpp
+* @author MdeR
+* @date 26 Apr 2019
+* @copyright 2019 MdeR
+* @brief This file contains the LMIC based task framework for managing reading of
+* sensors and transmission of readings via Lorawan.
+*/
+
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
 #include <cstdint>
+#include <WiFi.h>
 
 #include <encoder.hpp>
 #include <getreadings.hpp>
@@ -42,17 +52,17 @@
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
 // 0x70.
 
-static const u1_t PROGMEM APPEUI[8]={ 0xDF, 0xAF, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+static const u1_t PROGMEM APPEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x01, 0xAF, 0xDF };
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x01, 0xAF, 0xDF };
+static const u1_t PROGMEM DEVEUI[8]={ 0x00, 0xE6, 0xF1, 0xB8, 0xBD, 0x0C, 0x7C, 0x9A };
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
-static const u1_t PROGMEM APPKEY[16] = { 0xEA, 0x65, 0xE4, 0xE8, 0xDA, 0x84, 0x07, 0x02, 0x91, 0x6E, 0x8E, 0x8A, 0x3B, 0x1C, 0xB9, 0xF6 };
+static const u1_t PROGMEM APPKEY[16] = { 0x3D, 0x94, 0x0B, 0x5E, 0xFF, 0x2B, 0x2F, 0xF2, 0x7F, 0x31, 0x29, 0x0C, 0x67, 0xC0, 0xC5, 0xED };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 // These variables are used to pass data between the sensorread job and the send job
@@ -67,12 +77,11 @@ static osjob_t  sensorreadphase2job;
 static osjob_t  sendjob;
 
 // Pin mapping
-const lmic_pinmap lmic_pins =
-{
-    .nss = 18,
-    .rxtx = LMIC_UNUSED_PIN,
-    .rst = 14,
-    .dio = {26, 33, 32},
+const lmic_pinmap lmic_pins = {
+  .nss = 18,
+  .rxtx = LMIC_UNUSED_PIN,
+  .rst = 14,
+  .dio = {/*dio0*/ 26, /*dio1*/ 33, /*dio2*/ 32}
 };
 
 /**
@@ -127,13 +136,13 @@ void onEvent (ev_t ev)
 
                 if (LMIC.txrxFlags & TXRX_ACK)
                 {
-                  Serial.println(F("Received ack"));
+                    Serial.println(F("Received ack"));
                 }
                 if (LMIC.dataLen)
                 {
-                  Serial.println(F("Received "));
-                  Serial.println(LMIC.dataLen);
-                  Serial.println(F(" bytes of payload"));
+                    Serial.println(F("Received "));
+                    Serial.println(LMIC.dataLen);
+                    Serial.println(F(" bytes of payload"));
                 }
 
                 // phase1Offset is the time we need to allow between waking up the sensors and performing the transmit
@@ -175,17 +184,27 @@ void onEvent (ev_t ev)
         case EV_LINK_ALIVE:
             Serial.println(F("EV_LINK_ALIVE"));
             break;
-         default:
-            Serial.println(F("Unknown event"));
+        case EV_TXSTART:
+            Serial.println(F("EV_TXSTART"));
+            break;
+        default:
+            Serial.print(F("Unknown event 0x"));
+            Serial.println( ev, HEX );
             break;
     }
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Generate a bitwise encoding of available sensor values
+* @param [in] none
+* @return none
+* @details Note that this function does not cause sensors to provide
+* readings. It discovers which readings are actually available at this
+* point in time, and directs the encode function to encode those values,
+* which are retrieved from cache.
+* TBD - at the moment, the actual reading and the encoding are tightly
+* coupled, but this design is intended to allow this constraint to be
+* lifted.
 */
 
 void do_encode(void)
@@ -201,10 +220,14 @@ uint16_t validValuesMask = 0;
     Serial.print(F("Valid readings 0x"));
     Serial.println(validValuesMask, HEX);
 
+    Serial.print(F("MAX_BUFFER_BYTES : "));
+    Serial.println( encoder::MAX_BUFFER_BYTES );
+
     // clean the output buffer
     memset( mydata, 0, encoder::MAX_BUFFER_BYTES );
 
     // Only encode the set of readings which were actually valid
+    // NB this might be no readings at all.
     bytesUsed = encoder::encode( mydata, &values, validValuesMask );
 
     Serial.print(F("Bytes used : "));
@@ -305,25 +328,68 @@ void do_send(osjob_t* j)
 }
 
 /**
+* @brief Obtain ( WiFi ) MAC for DEVEUI construction
+* @param [in] buffer - enough bytes to hold a ( binary ) MAC
+* @return none
+* @details <details>
+*/
+
+void getMACAddress( uint8_t *buffer )
+{
+    WiFi.macAddress( buffer );
+}
+
+/**
 * @brief Arduino framework setup function.
 * @param [in] None
 * @return N/A
 * @details Perform one - time power up initialisations. In particular, send a dummy
 * packet, because the successful transmission of a packet is required in order to
-* start the normal schedule of sensor reading/transmission.
+* start the normal schedule of sensor reading/transmission, as well as initiating the
+* OTAA exchange.
 */
 
 void setup( void )
 {
+uint8_t macAddress[6] = { 0,0,0,0,0,0 };
+
+    //find out our MAC address
+    getMACAddress( macAddress );
+
+    //Turn off WiFi and Bluetooth ( or at least, try to... TBD )
+    WiFi.mode(WIFI_OFF);
+    btStop();
+
+    //TBD pause for logging convenience
+    delay(5000);
+
     // Serial port for programming/debugging. Is serial 0, i.e. U0UXD, TX/GPIO1, RX/GPIO3
     // See https://circuits4you.com/2018/12/31/esp32-hardware-serial2-example/
     Serial.begin(115200);
 
+    Serial.print(F("MAC Address : "));
+    int i = 5;
+    for( ; i>0; i-- )
+    {
+        Serial.print( macAddress[i], HEX );
+        Serial.print(F(":"));
+    }
+    Serial.println( macAddress[i], HEX );
+
     Serial.print(F("Starting, LORA tx interval (s) : "));
     Serial.println(ttnotaa::TX_INTERVAL);
+    Serial.print(F("MAX_CHANNELS : "));
+    Serial.println( MAX_CHANNELS );
+    Serial.print(F("MAX_BANDS : "));
+    Serial.println( MAX_BANDS );
+    Serial.print(F("OSTICKS_PER_SEC : "));
+    Serial.println( OSTICKS_PER_SEC );
 
     // LMIC init
     os_init();
+
+    // 17 is the max power supported by the LMIC MAC
+    LMIC.txpow = 17;
 
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();

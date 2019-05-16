@@ -13,6 +13,16 @@
  *
  *******************************************************************************/
 
+/**
+* @file getreadings.cpp
+* @author MdeR
+* @date 26 Apr 2019
+* @copyright 2019 MdeR
+* @brief This file provides an interface for obtaining readings. Ultimately
+* the readings come from sensors, but this interface hides knowledge of
+* sensor specifics and deals only in readings.
+*/
+
 #include <encoder.hpp>
 #include <getreadings.hpp>
 #include <sensors.hpp>
@@ -49,13 +59,13 @@ int     sensorId = 0xDEADBEEF;
 
             if( sensors::sensorReading( sensorId, readingMask, valuePtr ) )
             {
-                // reading error
-                Serial.println(F("Reading Error"));
-                retVal = false;
+                retVal = true;
             }
             else
             {
-                retVal = true;
+                // reading error
+                Serial.println(F("Reading Error"));
+                retVal = false;
             }
         }
         else
@@ -83,7 +93,7 @@ int     sensorId = 0xDEADBEEF;
 * @brief Assemble available readings, recording the ones available.
 * @param [in] readingsPtr - a convenience structure for passing available readings to the encoder.
 * @return A bitmap of the readings which are actually valid.
-* @details Retrieve current value of reading for all known parameters, and set a flag for each
+* @details Retrieve current value of reading for all known readings, and set a flag for each
 * reading that is valid. Stop any currently powered on sensors where possible. This function can
 * only be called again after wakeup.
 */
@@ -91,6 +101,16 @@ int     sensorId = 0xDEADBEEF;
 uint16_t getreadings::getReadings( struct encoder::readings* readingsPtr )
 {
 uint16_t retMask = 0;
+
+    readingsPtr->pm2v5 = 0;
+    readingsPtr->pm10 = 0;
+    readingsPtr->temp = 0;
+    readingsPtr->relh = 0;
+    readingsPtr->nox = 0;
+    readingsPtr->co2 = 0;
+    readingsPtr->lat = 0;
+    readingsPtr->lon = 0;
+    readingsPtr->alt = 0;
 
     if( getReading( &readingsPtr->pm2v5, encoder::DATA_CONTAINS_PM2V5 ) )
     {

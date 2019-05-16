@@ -103,5 +103,5 @@
     bool    sensorSDS011ValidateMsg( int* msgPtr );
     bool    sensorSDS011GetReadings( void );
     bool    sensorSDS011SendCommand( uint32_t cmd);
-    bool    sensorSDS011Read( uint8_t readingMask, int* valuePtr );
+    bool    sensorSDS011Read( uint16_t readingMask, int* valuePtr );
     void    sensorSDS011Wakeup( void );

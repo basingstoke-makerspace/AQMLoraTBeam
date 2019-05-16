@@ -20,6 +20,8 @@
 
 #include <cstdint>
 #include <HardwareSerial.h>
+#include <DHT.h>
+
 #include <encoder.hpp>
 #include <ttnotaa.hpp>
 
@@ -44,21 +46,38 @@ namespace sensors
     // The number of different sensors attached to the system.
     const uint32_t  NUM_SENSORS = 3;
 
+    // collect information about a sensor in one place
     struct sensordescriptor
     {
-        uint8_t     id;
-        uint16_t    readings;
-        bool        needsWakeup;
-        uint32_t    wakeupMilliseconds;
-        uint32_t    maxReadtime;
-        bool        (*triggerFunc)(void);
+        uint8_t     id;                     // unique identity of the sensor
+        uint16_t    readings;               // mask specifying readings provided by the sensor
+        bool        needsWakeup;            // does the sensor need to be woken up before reading from it ?
+        uint32_t    wakeupMilliseconds;     // if there is a wakeup, how long does it take ?
+        uint32_t    maxReadtime;            // how long to allow for a reading ?
+        bool        (*triggerFunc)(void);   // the function to perform the reading(s);
+        bool        needsShutdown;          // does the sensor need to be explicitly shut down ?
     };
 
     const struct sensordescriptor sensorDescriptors[ NUM_SENSORS ] =
     {
-        { SENSOR_ID_SDS011, SDS011_READINGS, true, SDS011_WAKEUP, SDS011_MAX_READ_TIME, sensorSDS011GetReadings },
-        { SENSOR_ID_DHT, DHT_READINGS, false, 0, 0, sensorDHTGetReadings },
-        { SENSOR_ID_NEO6M, NEO6M_READINGS, false, 0, 0, sensorNEO6MGetReadings }
+        { SENSOR_ID_SDS011, SDS011_READINGS, true, SDS011_WAKEUP, SDS011_MAX_READ_TIME, sensorSDS011GetReadings, false },
+        { SENSOR_ID_DHT, DHT_READINGS, false, 0, 0, sensorDHTGetReadings, false },
+        { SENSOR_ID_NEO6M, NEO6M_READINGS, false, 0, 0, sensorNEO6MGetReadings, false }
+    };
+
+    // If you want to *not* use a sensor, change the relevant entry to 'false'. This affects all readings
+    // that would be supplied by this sensor.
+    struct sensorpresence
+    {
+        uint8_t sensorId;
+        bool    present;
+    };
+
+    const struct sensorpresence sensorPresence[ NUM_SENSORS ] =
+    {
+        { SENSOR_ID_SDS011, false }, // FALSE - MdeR 15/05/19 debug
+        { SENSOR_ID_DHT,    false }, // FALSE - MdeR 01/05/19 debug
+        { SENSOR_ID_NEO6M,  false }, // FALSE - MdeR 15/05/19 debug
     };
 
     // non const - can only be worked out at runtime
@@ -66,9 +85,10 @@ namespace sensors
 
    // sensor interface
    //***********************************
+    bool        sensorConfigured( uint8_t sensorId );
     bool        sensorInitSensors( void );
     int         sensorValid( uint16_t readingRequired );
-    bool        sensorReading( int sensorId, uint8_t readingMask, int* valuePtr );
+    bool        sensorReading( int sensorId, uint16_t readingMask, int* valuePtr );
     uint32_t    sensorMaxWakeup( void );
     uint32_t    sensorMaxReadtime( void );
     void        sensorWakeup( void );

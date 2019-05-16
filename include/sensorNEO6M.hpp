@@ -29,5 +29,5 @@
    //***********************************
     bool sensorNEO6MInit( void );
     bool sensorNEO6MGetReadings( void );
-    bool sensorNEO6MRead( uint8_t readingMask, int* valuePtr );
+    bool sensorNEO6MRead( uint16_t readingMask, int* valuePtr );
     void sensorNEO6MWakeup( void );

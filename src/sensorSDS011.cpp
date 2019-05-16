@@ -18,7 +18,8 @@
 * @author MdeR
 * @date 26 Apr 2019
 * @copyright 2019 MdeR
-* @brief <brief>
+* @brief This file defines data and code for the purpose of configuring ( initialising )
+* and reading from the SDS011 particle sensor.
 */
 
 #include <stdlib.h>
@@ -303,13 +304,15 @@ int  i=0;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Return the current value of the specified reading
+* @param [in]   readingMask - set bit specifies reading required
+*        [out]  valuePtr    - pointer to var to hold reading
+* @return true if reading was found, else false
+* @details Get the reading value requested from the private
+* data store which was filled by the GetReadings function.
 */
 
-bool sensors::sensorSDS011Read( uint8_t readingMask, int* valuePtr )
+bool sensors::sensorSDS011Read( uint16_t readingMask, int* valuePtr )
 {
 bool        retVal = true;
 
@@ -324,7 +327,7 @@ bool        retVal = true;
     }
     else
     {
-        Serial.println(F("SDS011 Invalid parameter requested"));
+        Serial.println(F("SDS011 Invalid reading requested"));
         retVal = false;
     }
 

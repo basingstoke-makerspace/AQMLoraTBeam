@@ -52,11 +52,11 @@
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
 // 0x70.
 
-static const u1_t PROGMEM APPEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x01, 0xAF, 0xDF };
+static const u1_t PROGMEM APPEUI[8]={ 0xDF, 0xAF, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ 0x00, 0xE6, 0xF1, 0xB8, 0xBD, 0x0C, 0x7C, 0x9A };
+static const u1_t PROGMEM DEVEUI[8]={ 0x9A, 0x7C, 0x0C, 0xBD, 0xB8, 0xF1, 0xE6, 0x00 };
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // This key should be in big endian format (or, since it is not really a

@@ -113,7 +113,7 @@ uint32_t val;
 }
 
 /**
-* @brief <brief>
+* @brief Answer the question 'what sensor do we use for this reading ?'
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
@@ -125,6 +125,17 @@ int retVal = -1;
 
     for( int i=0; i<sensors::NUM_SENSORS; i++)
     {
+        if( !sensors::sensorConfigured(i) )
+        {
+            // if the sensor is not configured, we cannot consider it as a
+            // potential source of readings.
+
+            Serial.print( F("Sensor not valid because not configured : ") );
+            Serial.println( i );
+
+            continue;
+        }
+
         // have we found the sensor that provides this reading ?
         // readingRequired is a bitmask with one bit set which corresponds
         // to the reading being requested.
@@ -240,19 +251,27 @@ int retVal = false;
 
 bool sensors::sensorTrigger( void )
 {
-bool retVal = false;
+bool retVal = true;
 
     // trigger all sensors to provide readings
-
     for( int i=0; i<sensors::NUM_SENSORS; i++ )
     {
-        if( !sensors::sensorDescriptors[i].triggerFunc() )
+        // Do not trigger sensors which are not configured
+        if( sensors::sensorConfigured(i) )
         {
-            // failed to trigger a sensor
-            Serial.println(F("Sensor failed to trigger"));
+            if( !sensors::sensorDescriptors[i].triggerFunc() )
+            {
+                // failed to trigger a sensor
+                Serial.println(F("Sensor failed to trigger"));
 
-            retVal = false;
-            break;
+                retVal = false;
+                break;
+            }
+        }
+        else
+        {
+            // it's not a trigger failure if the sensor is not configured
+            Serial.println(F("Sensor not available to be triggered"));
         }
     }
 

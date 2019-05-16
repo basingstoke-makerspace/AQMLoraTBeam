@@ -4,7 +4,8 @@ Code for running AQM ( Air Quality Monitoring ) sensors on an ESP32 TBeam device
 Supported sensors currently - SDS011 PM sensor, DHT ( 11/22 ) temperature and humidity sensor.
 Also supporting the NEO6M GPS sensor integrated on the T-Beam device.
 
-Project set up in PlatformIO, based on IBM Zurich LMIC code for Lora as ported for Arduino framework ( https://www.arduinolibraries.info/libraries/ibm-lmic-framework ). Also using TinyGPS++ and HardwareSerial.
+Project set up in PlatformIO, based on IBM LMIC code for Lora as ported for Arduino framework 
+( MCCI LoRaWAN LMIC library). Also using TinyGPS++ and HardwareSerial.
 
 NB This project is not using FreeRTOS. At least, not as far as I'm aware. This is not a reflection on 
 FreeRTOS, more on the simplicity of the functionality required here, and the fact that the LMIC 

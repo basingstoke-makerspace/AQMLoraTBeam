@@ -101,12 +101,14 @@ const int   MAX_BUFFER_BYTES    = ((BITS_FOR_DATAMASK+
 const uint16_t datamask =   DATA_CONTAINS_PM2V5 |
                             DATA_CONTAINS_PM10 |
                             DATA_CONTAINS_TEMP |
-                            DATA_CONTAINS_RELH ;
-*/
-
-const uint16_t datamask =   DATA_CONTAINS_LAT |
+                            DATA_CONTAINS_RELH |
+                            DATA_CONTAINS_LAT |
                             DATA_CONTAINS_LON |
                             DATA_CONTAINS_ALT ;
+*/
+
+const uint16_t datamask =   DATA_CONTAINS_PM2V5 |
+                            DATA_CONTAINS_PM10 ;
 
 // Metadata for bitfields to be encoded
 struct BitfieldDescriptor

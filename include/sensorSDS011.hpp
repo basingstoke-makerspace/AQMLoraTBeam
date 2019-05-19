@@ -7,16 +7,19 @@
     **********************************/
 
     // Settings to use ESP32 Serial2 ( U2UXD ) hardware UART
+
+    const uint32_t  SDS011_SERIAL_UART = 2;
+
     const uint32_t  SDS011_SERIAL_BAUD   = 9600;
     const uint32_t  SDS011_SERIAL_FORMAT = SERIAL_8N1;
-    const uint32_t  SDS011_SERIAL_RXGPIO = 16;
-    const uint32_t  SDS011_SERIAL_TXGPIO = 17;
+    const uint32_t  SDS011_SERIAL_RXGPIO = 4;
+    const uint32_t  SDS011_SERIAL_TXGPIO = 13;
 
     const size_t    SDS011_SERIAL_HARDWAREBUFFERSIZE = 32;
 
     // There is a 'wake up' time, for which the sensor needs to be continuously powered before it is
     // safe to read from it. Time in ms.
-    const uint32_t  SDS011_WAKEUP = 15000;
+    const uint32_t  SDS011_WAKEUP = 20000;
 
     // There is a maximum time allowed for a read to complete. Time in ms.
     const uint32_t  SDS011_MAX_READ_TIME = 5000;
@@ -34,33 +37,33 @@
     const uint32_t  SDS011_NUM_CMDS              = 4;
 
     // Command ids
-    const uint32_t  SDS011_CMDID_START           = 0;
-    const uint32_t  SDS011_CMDID_STOP            = 1;
-    const uint32_t  SDS011_CMDID_CONTINUOUSMODE  = 2;
-    const uint32_t  SDS011_CMDID_VERSION         = 3;
+    const uint32_t  SDS011_CMDID_WORK                       = 0;
+    const uint32_t  SDS011_CMDID_SLEEP                      = 1;
+    const uint32_t  SDS011_CMDID_WORKINGPERIOD_CONTINUOUS   = 2;
+    const uint32_t  SDS011_CMDID_FIRMWAREVERSION            = 3;
 
     // Byte sequences for commands
-	const uint8_t  SDS011_CMD_START[] =
+	const uint8_t  SDS011_CMD_WORK[] =
     {
         0xAA, 0xB4, 0x06, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x06, 0xAB
     };
-	const uint8_t  SDS011_CMD_STOP[]  =
+	const uint8_t  SDS011_CMD_SLEEP[]  =
     {
         0xAA, 0xB4, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x05, 0xAB
     };
-	const uint8_t  SDS011_CMD_CONTINUOUSMODE[] =
+	const uint8_t  SDS011_CMD_WORKINGPERIOD_CONTINUOUS[] =
     {
         0xAA, 0xB4, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x07, 0xAB
     };
-	const uint8_t  SDS011_CMD_VERSION[] =
+	const uint8_t  SDS011_CMD_FIRMWAREVERSION[] =
     {
         0xAA, 0xB4, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x05, 0xAB
     };
 
-    const uint8_t* const SDS011_CMD_STRINGS[SDS011_NUM_CMDS] =  {   SDS011_CMD_START,
-                                                                    SDS011_CMD_STOP,
-                                                                    SDS011_CMD_CONTINUOUSMODE,
-                                                                    SDS011_CMD_VERSION
+    const uint8_t* const SDS011_CMD_STRINGS[SDS011_NUM_CMDS] =  {   SDS011_CMD_WORK,
+                                                                    SDS011_CMD_SLEEP,
+                                                                    SDS011_CMD_WORKINGPERIOD_CONTINUOUS,
+                                                                    SDS011_CMD_FIRMWAREVERSION
                                                                 };
 
     // The length of all SDS011 commands is the same
@@ -105,3 +108,4 @@
     bool    sensorSDS011SendCommand( uint32_t cmd);
     bool    sensorSDS011Read( uint16_t readingMask, int* valuePtr );
     void    sensorSDS011Wakeup( void );
+    void    sensorSDS011Sleep( void );

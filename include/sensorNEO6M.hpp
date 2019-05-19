@@ -31,3 +31,4 @@
     bool sensorNEO6MGetReadings( void );
     bool sensorNEO6MRead( uint16_t readingMask, int* valuePtr );
     void sensorNEO6MWakeup( void );
+    void sensorNEO6MSleep( void );

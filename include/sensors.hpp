@@ -60,9 +60,9 @@ namespace sensors
 
     const struct sensordescriptor sensorDescriptors[ NUM_SENSORS ] =
     {
-        { SENSOR_ID_SDS011, SDS011_READINGS, true, SDS011_WAKEUP, SDS011_MAX_READ_TIME, sensorSDS011GetReadings, false },
-        { SENSOR_ID_DHT, DHT_READINGS, false, 0, 0, sensorDHTGetReadings, false },
-        { SENSOR_ID_NEO6M, NEO6M_READINGS, false, 0, 0, sensorNEO6MGetReadings, false }
+        { SENSOR_ID_SDS011, SDS011_READINGS, true, SDS011_WAKEUP, SDS011_MAX_READ_TIME, sensors::sensorSDS011GetReadings, false },
+        { SENSOR_ID_DHT, DHT_READINGS, false, 0, 0, sensors::sensorDHTGetReadings, false },
+        { SENSOR_ID_NEO6M, NEO6M_READINGS, false, 0, 0, sensors::sensorNEO6MGetReadings, false }
     };
 
     // If you want to *not* use a sensor, change the relevant entry to 'false'. This affects all readings
@@ -75,7 +75,7 @@ namespace sensors
 
     const struct sensorpresence sensorPresence[ NUM_SENSORS ] =
     {
-        { SENSOR_ID_SDS011, false }, // FALSE - MdeR 15/05/19 debug
+        { SENSOR_ID_SDS011, true },
         { SENSOR_ID_DHT,    false }, // FALSE - MdeR 01/05/19 debug
         { SENSOR_ID_NEO6M,  false }, // FALSE - MdeR 15/05/19 debug
     };
@@ -93,6 +93,7 @@ namespace sensors
     uint32_t    sensorMaxReadtime( void );
     void        sensorWakeup( void );
     bool        sensorTrigger( void );
+    void        sensorSleep( void );
 
     template<typename T, std::size_t N> constexpr std::size_t array_num_elements(const T(&)[N]) {
 	       return N; }

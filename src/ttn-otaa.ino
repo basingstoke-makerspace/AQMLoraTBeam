@@ -80,7 +80,7 @@ static osjob_t  sendjob;
 const lmic_pinmap lmic_pins = {
   .nss = 18,
   .rxtx = LMIC_UNUSED_PIN,
-  .rst = 14,
+  .rst = LMIC_UNUSED_PIN,
   .dio = {/*dio0*/ 26, /*dio1*/ 33, /*dio2*/ 32}
 };
 
@@ -145,27 +145,40 @@ void onEvent (ev_t ev)
                     Serial.println(F(" bytes of payload"));
                 }
 
-                // phase1Offset is the time we need to allow between waking up the sensors and performing the transmit
+                // phase1Offset is the time in secs we need to allow between waking up the sensors and performing the transmit
                 int phase1Offset = (( sensors::sensorMaxWakeup() + sensors::sensorMaxReadtime() )/1000 ) ;
+                int wakeupTime = os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL - phase1Offset );
+
+                Serial.print(F("Wakeup time :"));
+                Serial.println( wakeupTime );
+
+                // read time is wakeup time plus the wakeup period. 1s leeway.
+                int readTime = wakeupTime + sec2osticks( 1 + sensors::sensorMaxWakeup()/1000 );
+
+                Serial.print(F("Read time :"));
+                Serial.println( readTime );
+
+                // send time is read time point the maximum time to read. 1s leeway.
+                int sendTime = readTime + sec2osticks( 1 + sensors::sensorMaxReadtime()/1000 );
+
+                Serial.print(F("Send time :"));
+                Serial.println( sendTime );
 
                 // The TX_INTERVAL must be bigger than the read time offset.
                 // Preferably much bigger, or we will use a lot more power.
                 assert( ttnotaa::TX_INTERVAL > phase1Offset );
 
                 // Schedule phase 1
-                // We want to read the sensors at a time as close as possible to the following transmission, which
+                // We want to wake up the sensors at a time as close as possible to the following transmission, which
                 // is why we don't just do it now. This time is calculated by applying the phase1Offset.
-                os_setTimedCallback(&sensorreadphase1job, os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL - phase1Offset ), do_sensorread_phase1);
-
-                // Schedule phase 2, allowing time for wakeup to complete
-                int phase2Offset = ( sensors::sensorMaxWakeup() / 1000 ) ;
+                os_setTimedCallback(&sensorreadphase1job, wakeupTime, do_sensorread_phase1);
 
                 // Schedule phase 2 - this is where the readings are actually taken
-                os_setTimedCallback(&sensorreadphase2job, os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL - phase2Offset ), do_sensorread_phase2);
+                os_setTimedCallback(&sensorreadphase2job, readTime, do_sensorread_phase2);
 
                 // Schedule next transmission
                 // No sensor reading is done at this time, only sending of latest readings.
-                os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL), do_send);
+                os_setTimedCallback(&sendjob, sendTime, do_send);
             }
             break;
         case EV_LOST_TSYNC:
@@ -264,8 +277,8 @@ void do_sensorread_phase1(osjob_t* j)
 * @brief Read sensor values
 * @param [in] j - OS context info for this job
 * @return N/A
-* @details This job does two things - it reads from the sensors, and it encodes those
-* values in the form that will actually be transmitted. It *does not* actually
+* @details This job does two things - it reads from the sensors, and it encodes the
+* available readings in the form that will actually be transmitted. It *does not* actually
 * perform the transmit. The rationale for seperating the transmit is just to minimise
 * any uncertainty about the interval between queuing packets. The actual transmit
 * interval is not entirely within our control, as LORA is a slotted protocol and
@@ -284,20 +297,25 @@ void do_sensorread_phase2(osjob_t* j)
 
     if ( ! ( LMIC.opmode & OP_TXRXPEND ) )
     {
-        // Cause the sensors to provide readings
+        // Cause the sensors to provide readings where possible, and write them to cache.
         if( sensors::sensorTrigger() )
         {
             // encode the readings in the output buffer
+            // Note that the readings used here are taken from a cache, not directly from the sensor.
             do_encode();
         }
         else
         {
-            Serial.println(F("ReadPhase2 READING SKIPPED 1"));
+            Serial.println(F("ReadPhase2 READING SKIPPED - trigger failure"));
         }
+
+        // Put the sensors to sleep, if that's a meaningful concept
+
+        sensors::sensorSleep();
     }
     else
     {
-        Serial.println(F("ReadPhase2 READING SKIPPED 2"));
+        Serial.println(F("ReadPhase2 READING SKIPPED - TX in progress"));
     }
 }
 
@@ -328,14 +346,18 @@ void do_send(osjob_t* j)
 }
 
 /**
-* @brief Obtain ( WiFi ) MAC for DEVEUI construction
-* @param [in] buffer - enough bytes to hold a ( binary ) MAC
+* @brief Obtain an address for DEVEUI construction
+* @param [in] buffer - enough bytes to hold whatever form of address we are using
 * @return none
-* @details <details>
+* @details It's not necessarily the case that a MAC address must be used -
+* the purpose of this function is simply to supply a set of bytes that will
+* serve to uniquely identify the device it is running on, in the context of
+* all the other devices that will be attached to the application.
 */
 
-void getMACAddress( uint8_t *buffer )
+void getAddress( uint8_t *buffer )
 {
+    // Currently the address we will use is the WiFi MAC address.
     WiFi.macAddress( buffer );
 }
 
@@ -354,13 +376,13 @@ void setup( void )
 uint8_t macAddress[6] = { 0,0,0,0,0,0 };
 
     //find out our MAC address
-    getMACAddress( macAddress );
+    getAddress( macAddress );
 
     //Turn off WiFi and Bluetooth ( or at least, try to... TBD )
     WiFi.mode(WIFI_OFF);
     btStop();
 
-    //TBD pause for logging convenience
+    //TBD pause for log viewing convenience
     delay(5000);
 
     // Serial port for programming/debugging. Is serial 0, i.e. U0UXD, TX/GPIO1, RX/GPIO3

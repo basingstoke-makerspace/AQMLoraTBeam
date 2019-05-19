@@ -27,3 +27,4 @@
     bool sensorDHTGetReadings( void );
     bool sensorDHTRead( uint16_t readingMask, int* valuePtr );
     void sensorDHTWakeup( void );
+    void sensorDHTSleep( void );

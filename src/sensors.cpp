@@ -63,7 +63,7 @@ int i;
 }
 
 /**
-* @brief
+* @brief Find the maximum time any sensor needs to take a reading
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
@@ -88,7 +88,7 @@ uint32_t val;
 }
 
 /**
-* @brief <brief>
+* @brief Find the maximum time any sensor needs to wakeup
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
@@ -259,7 +259,10 @@ bool retVal = true;
         // Do not trigger sensors which are not configured
         if( sensors::sensorConfigured(i) )
         {
-            if( !sensors::sensorDescriptors[i].triggerFunc() )
+            Serial.print(F("Triggering read from sensor : "));
+            Serial.println( i );
+
+            if( !( sensors::sensorDescriptors[i].triggerFunc() ) )
             {
                 // failed to trigger a sensor
                 Serial.println(F("Sensor failed to trigger"));
@@ -290,4 +293,18 @@ void sensors::sensorWakeup( void )
     sensors::sensorSDS011Wakeup();
     sensors::sensorDHTWakeup();
     sensors::sensorNEO6MWakeup();
+}
+
+/**
+* @brief Put sensors into low power state if possible
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void sensors::sensorSleep( void )
+{
+    sensors::sensorSDS011Sleep();
+    sensors::sensorDHTSleep();
+    sensors::sensorNEO6MSleep();
 }

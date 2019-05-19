@@ -159,16 +159,13 @@ uint16_t retMask = 0;
 
     // If we can, then stop the sensors, i.e. enter a lower power state. The
     // decision is based on the sampling interval. If the sampling interval is
-    // small, then we cannot afford to stop the sensor, because it will take too
-    // long to spin up again before we can do a read.
+    // small, and the wakeup time is long, then we cannot afford to stop the sensor,
+    // because it will take too long to spin up again before we can do a read.
 
     // We don't care when, within the sampling interval, the measurement actually
     // happens, only that it can happen before we need to perform another read.
 
-    if( ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( ttnotaa::TX_INTERVAL*1000 ) )
-    {
-        sensors::sensorSDS011SendCommand( sensors::SDS011_CMDID_STOP );
-    }
+    sensors::sensorSleep();
 
     // Readings will only be attempted as specified by encoder::datamask.
     // retMask specifies which readings were actually obtained, i.e. this will

@@ -159,3 +159,15 @@ unsigned long start = millis();
 
     return retVal;
 }
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void sensors::sensorNEO6MSleep( void )
+{
+    return; // TBD
+}

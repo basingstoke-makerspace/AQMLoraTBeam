@@ -86,18 +86,6 @@ bool        retVal = true;
 }
 
 /**
-* @brief Perform per-reading actions required prior to using this sensor
-* @param [in] None
-* @return N/A
-* @details No wakeup required for DHT sensor.
-*/
-
-void sensors::sensorDHTWakeup( void )
-{
-    Serial.println("Waking up DHT");
-}
-
-/**
 * @brief Read values of all readings supported by the sensor
 * @param [in] None
 * @return true if all readings successfully obtained, else false.
@@ -146,4 +134,28 @@ float relHum;
     }
 
     return retVal;
+}
+
+/**
+* @brief Perform per-reading actions required prior to using this sensor
+* @param [in] None
+* @return N/A
+* @details No wakeup required for DHT sensor.
+*/
+
+void sensors::sensorDHTWakeup( void )
+{
+    Serial.println("Waking up DHT"); // TBD Null operation
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void sensors::sensorDHTSleep( void )
+{
+    return; // Null operation
 }

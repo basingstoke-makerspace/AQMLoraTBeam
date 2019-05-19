@@ -53,12 +53,22 @@ bool sensors::sensorSDS011Init(void)
 
     assert( SDS011SerialPtr != NULL );
 
-    delay(50);
+    // begin() invokes end(), which invokes uartEnd(), which forces
+    // the Freertos queue for this uart to be recreated.
+
+    // begin() invokes flush(), which handles tx/rx fifo's. Note that this
+    // call does empty the rx fifo and the tx fifo, although it doesn't do
+    // it very nicely ( it deals with them character by character ). The
+    // Arduino documentation is misleading, because it suggests it does not
+    // deal with the rx fifo.
 
     SDS011SerialPtr->begin( sensors::SDS011_SERIAL_BAUD,
                             sensors::SDS011_SERIAL_FORMAT,
                             sensors::SDS011_SERIAL_RXGPIO,
                             sensors::SDS011_SERIAL_TXGPIO );
+
+    Serial.print(F("SDS011 post flush bytes available : "));
+    Serial.println( SDS011SerialPtr->available() );
 
     sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] = true;
 
@@ -81,11 +91,22 @@ int retVal;
     //Using ESP32 hardware UART U2UXD
     retVal = SDS011SerialPtr->write( sensors::SDS011_CMD_STRINGS[ cmd ], sensors::SDS011_CMD_SIZE);
 
-    Serial.print(F("SDS011 Bytes written :"));
-    Serial.println( retVal );
+    if( retVal != sensors::SDS011_CMD_SIZE )
+    {
+        Serial.print(F("SDS011 Command NOT sent : "));
+        Serial.print( SDS011_COMMAND_NAME[cmd] );
+        Serial.print( " " );
+        Serial.println( retVal );
 
-    // if we have given the sensor any command other than 'stop', then it is running
-	return cmd != sensors::SDS011_CMDID_SLEEP;
+        return false;
+    }
+    else
+    {
+        Serial.print(F("SDS011 Command sent : "));
+        Serial.println( SDS011_COMMAND_NAME[cmd] );
+
+        return true;
+    }
 }
 
 /**
@@ -113,8 +134,8 @@ bool                retVal;
     }
     else
     {
-        delay(30);
-        totalWaitMilliseconds+=30;
+        delay(SDS011_CHECKWAIT_DELAY);
+        totalWaitMilliseconds+=SDS011_CHECKWAIT_DELAY;
         retVal = true;
     }
 
@@ -140,7 +161,7 @@ int byte=0xDEADBEEF;
         {
             // we're doomed....
             Serial.println(F("SDS011 UART Error 3"));
-            exit(-1);
+            exit( EXIT_CODE_SDS011_UARTERROR );
         }
     }
 
@@ -233,13 +254,15 @@ bool retVal         = false;
 bool messageRxed    = false;
 int  i=0;
 
-    // Remove old data
+    // Because the Arduino/ESP32 uart handling offers no better way of doing this,
+    // ditch old queued characters ( there's a queue on top of the rxfifo...) by
+    // reading them, and flush the rx/tx buffers. We don't want old data here.
+    // The flush() call flushes the rx buffer ( crudely, by repeated reads )
+    // despite the Arduino documentation only referring to the tx buffer ( and
+    // then only to say that it doesn't actually flush it ).
+
+    while( SDS011SerialPtr->available() > 0 ) SDS011SerialPtr->read();
     SDS011SerialPtr->flush();
-
-    bytesAvailable = SDS011SerialPtr->available();
-
-    Serial.print(F("Bytesavailable : "));
-    Serial.println( bytesAvailable );
 
     // We need at least a whole message worth of bytes to be available -
     // we don't want the tail end of one message and the start of another.
@@ -266,7 +289,7 @@ int  i=0;
         {
             // our bytes have disappeared, we're doomed...
             Serial.println(F("SDS011 UART buffer problem, exiting"));
-            exit(-1);
+            exit( EXIT_CODE_SDS011_UARTBUFFER );
         }
     }
 
@@ -302,7 +325,7 @@ int  i=0;
         sensorSDS011LatestReadings.id    =    msgPtr[sensors::SDS011_RESP_ID1_POS]*256 +
                                               msgPtr[sensors::SDS011_RESP_ID0_POS] ;
 
-        Serial.print(F(" SDS011 Readings : "));
+        Serial.print(F("SDS011 Readings : "));
         Serial.print( sensorSDS011LatestReadings.pm2v5 );
         Serial.print(F(", "));
         Serial.print( sensorSDS011LatestReadings.pm10 );
@@ -323,17 +346,7 @@ int  i=0;
         Serial.println(F("SDS011 Failed to find message"));
     }
 
-    // If we can, then stop the sensor. The decision is based on the sampling
-    // interval. If the sampling interval is small, then we cannot afford to
-    // stop the sensor, because it will take too long to spin up again before
-    // we can do a read. We don't care when, within the sampling interval, the
-    // measurement actually happens, only that it can happen before we need to
-    // perform another read.
-
-    if( sensors::SDS011_STOP_SENSOR )
-    {
-        sensorSDS011SendCommand( sensors::SDS011_CMDID_SLEEP );
-    }
+    sensors::sensorSDS011Sleep();
 
     return retVal;
 }
@@ -381,14 +394,24 @@ void sensors::sensorSDS011Wakeup( void )
     Serial.print(F("Waking up SDS011 at : "));
     Serial.println( millis() );
 
-    sensorSDS011SendCommand( sensors::SDS011_CMDID_WORK );
+    if( !(sensorSDS011SendCommand( sensors::SDS011_CMDID_WORK ) ) )
+    {
+        // system not in a good state, uart/sensor state unknown
+        Serial.println( F("Sensor comms failed, exiting"));
+        exit( EXIT_CODE_SDS011_SENSORCOMMSFAILED );
+    }
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @brief Send the command which causes the sensor to sleep, if possible.
+* @param [in] None
+* @return None
+* @details If we can, then stop the sensor. The decision is based on the sampling
+* interval. If the sampling interval is small, then we cannot afford to
+* stop the sensor, because it will take too long to spin up again before
+* we can do a read. We don't care when, within the sampling interval, the
+* measurement actually happens, only that it can happen before we need to
+* perform another read.
 */
 
 void sensors::sensorSDS011Sleep( void )
@@ -397,7 +420,12 @@ void sensors::sensorSDS011Sleep( void )
     {
         Serial.println( F("SDS011 Sleeping"));
 
-        sensors::sensorSDS011SendCommand( sensors::SDS011_CMDID_SLEEP );
+        if( !(sensorSDS011SendCommand( sensors::SDS011_CMDID_SLEEP ) ) )
+        {
+            // system not in a good state, uart/sensor state unknown
+            Serial.println( F("Sensor comms failed, exiting"));
+            exit( EXIT_CODE_SDS011_SENSORCOMMSFAILED );
+        }
     }
     // else don't sleep because there would not be enough time to wake up
 }

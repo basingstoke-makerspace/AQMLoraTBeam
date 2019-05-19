@@ -24,6 +24,10 @@
     // There is a maximum time allowed for a read to complete. Time in ms.
     const uint32_t  SDS011_MAX_READ_TIME = 5000;
 
+    // Number of milliseconds for the Checkwait delay. delay is a crude blocking wait,
+    // too high a value may block important processes.
+    const uint32_t  SDS011_CHECKWAIT_DELAY = 50;
+
     // Should we stop this sensor after a reading ?
     constexpr bool  SDS011_STOP_SENSOR = ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( ttnotaa::TX_INTERVAL*1000 );
 
@@ -60,6 +64,8 @@
         0xAA, 0xB4, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x05, 0xAB
     };
 
+    const char* const SDS011_COMMAND_NAME[] = {   "WORK", "SLEEP", "WORKINGPERIOD_CONTINUOUS", "FIRMWAREVERSION" };
+
     const uint8_t* const SDS011_CMD_STRINGS[SDS011_NUM_CMDS] =  {   SDS011_CMD_WORK,
                                                                     SDS011_CMD_SLEEP,
                                                                     SDS011_CMD_WORKINGPERIOD_CONTINUOUS,
@@ -87,6 +93,13 @@
     const uint8_t   SDS011_RESP_LEAD_BYTE   = 0xAA;
     const uint8_t   SDS011_RESP_CMD_BYTE    = 0xC0;
     const uint8_t   SDS011_RESP_TAIL_BYTE   = 0xAB;
+
+    // exit codes
+    //***********************************
+
+    const int EXIT_CODE_SDS011_SENSORCOMMSFAILED    = -1 ;
+    const int EXIT_CODE_SDS011_UARTERROR            = -2 ;
+    const int EXIT_CODE_SDS011_UARTBUFFER           = -3 ;
 
     // sensor interface
     //***********************************

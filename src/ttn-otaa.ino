@@ -27,10 +27,20 @@
  *
  *******************************************************************************/
 
+/**
+* @file ttn-otaa.cpp
+* @author MdeR
+* @date 26 Apr 2019
+* @copyright 2019 MdeR
+* @brief This file contains the LMIC based task framework for managing reading of
+* sensors and transmission of readings via Lorawan.
+*/
+
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
 #include <cstdint>
+#include <WiFi.h>
 
 #include <encoder.hpp>
 #include <getreadings.hpp>
@@ -46,13 +56,13 @@ static const u1_t PROGMEM APPEUI[8]={ 0xDF, 0xAF, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x01, 0xAF, 0xDF };
+static const u1_t PROGMEM DEVEUI[8]={ 0x9A, 0x7C, 0x0C, 0xBD, 0xB8, 0xF1, 0xE6, 0x00 };
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
-static const u1_t PROGMEM APPKEY[16] = { 0xEA, 0x65, 0xE4, 0xE8, 0xDA, 0x84, 0x07, 0x02, 0x91, 0x6E, 0x8E, 0x8A, 0x3B, 0x1C, 0xB9, 0xF6 };
+static const u1_t PROGMEM APPKEY[16] = { 0x3D, 0x94, 0x0B, 0x5E, 0xFF, 0x2B, 0x2F, 0xF2, 0x7F, 0x31, 0x29, 0x0C, 0x67, 0xC0, 0xC5, 0xED };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 // These variables are used to pass data between the sensorread job and the send job
@@ -67,12 +77,11 @@ static osjob_t  sensorreadphase2job;
 static osjob_t  sendjob;
 
 // Pin mapping
-const lmic_pinmap lmic_pins =
-{
-    .nss = 18,
-    .rxtx = LMIC_UNUSED_PIN,
-    .rst = 14,
-    .dio = {26, 33, 32},
+const lmic_pinmap lmic_pins = {
+  .nss = 18,
+  .rxtx = LMIC_UNUSED_PIN,
+  .rst = LMIC_UNUSED_PIN,
+  .dio = {/*dio0*/ 26, /*dio1*/ 33, /*dio2*/ 32}
 };
 
 /**
@@ -127,36 +136,49 @@ void onEvent (ev_t ev)
 
                 if (LMIC.txrxFlags & TXRX_ACK)
                 {
-                  Serial.println(F("Received ack"));
+                    Serial.println(F("Received ack"));
                 }
                 if (LMIC.dataLen)
                 {
-                  Serial.println(F("Received "));
-                  Serial.println(LMIC.dataLen);
-                  Serial.println(F(" bytes of payload"));
+                    Serial.println(F("Received "));
+                    Serial.println(LMIC.dataLen);
+                    Serial.println(F(" bytes of payload"));
                 }
 
-                // phase1Offset is the time we need to allow between waking up the sensors and performing the transmit
+                // phase1Offset is the time in secs we need to allow between waking up the sensors and performing the transmit
                 int phase1Offset = (( sensors::sensorMaxWakeup() + sensors::sensorMaxReadtime() )/1000 ) ;
+                int wakeupTime = os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL - phase1Offset );
+
+                Serial.print(F("Wakeup time :"));
+                Serial.println( wakeupTime );
+
+                // read time is wakeup time plus the wakeup period. 1s leeway.
+                int readTime = wakeupTime + sec2osticks( 1 + sensors::sensorMaxWakeup()/1000 );
+
+                Serial.print(F("Read time :"));
+                Serial.println( readTime );
+
+                // send time is read time point the maximum time to read. 1s leeway.
+                int sendTime = readTime + sec2osticks( 1 + sensors::sensorMaxReadtime()/1000 );
+
+                Serial.print(F("Send time :"));
+                Serial.println( sendTime );
 
                 // The TX_INTERVAL must be bigger than the read time offset.
                 // Preferably much bigger, or we will use a lot more power.
                 assert( ttnotaa::TX_INTERVAL > phase1Offset );
 
                 // Schedule phase 1
-                // We want to read the sensors at a time as close as possible to the following transmission, which
+                // We want to wake up the sensors at a time as close as possible to the following transmission, which
                 // is why we don't just do it now. This time is calculated by applying the phase1Offset.
-                os_setTimedCallback(&sensorreadphase1job, os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL - phase1Offset ), do_sensorread_phase1);
-
-                // Schedule phase 2, allowing time for wakeup to complete
-                int phase2Offset = ( sensors::sensorMaxWakeup() / 1000 ) ;
+                os_setTimedCallback(&sensorreadphase1job, wakeupTime, do_sensorread_phase1);
 
                 // Schedule phase 2 - this is where the readings are actually taken
-                os_setTimedCallback(&sensorreadphase2job, os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL - phase2Offset ), do_sensorread_phase2);
+                os_setTimedCallback(&sensorreadphase2job, readTime, do_sensorread_phase2);
 
                 // Schedule next transmission
                 // No sensor reading is done at this time, only sending of latest readings.
-                os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(ttnotaa::TX_INTERVAL), do_send);
+                os_setTimedCallback(&sendjob, sendTime, do_send);
             }
             break;
         case EV_LOST_TSYNC:
@@ -175,10 +197,62 @@ void onEvent (ev_t ev)
         case EV_LINK_ALIVE:
             Serial.println(F("EV_LINK_ALIVE"));
             break;
-         default:
-            Serial.println(F("Unknown event"));
+        case EV_TXSTART:
+            Serial.println(F("EV_TXSTART"));
+            break;
+        default:
+            Serial.print(F("Unknown event 0x"));
+            Serial.println( ev, HEX );
             break;
     }
+}
+
+/**
+* @brief Generate a bitwise encoding of available sensor values
+* @param [in] none
+* @return none
+* @details Note that this function does not cause sensors to provide
+* readings. It discovers which readings are actually available at this
+* point in time, and directs the encode function to encode those values,
+* which are retrieved from cache.
+* TBD - at the moment, the actual reading and the encoding are tightly
+* coupled, but this design is intended to allow this constraint to be
+* lifted.
+*/
+
+void do_encode(void)
+{
+struct encoder::readings values;
+uint16_t validValuesMask = 0;
+
+    // Attempt to get the readings specified by encoder::datamask
+    // Note that we may not get all the readings we expect if the sensor
+    // did not respond to the trigger.
+    validValuesMask = getreadings::getReadings( &values );
+
+    Serial.print(F("Valid readings 0x"));
+    Serial.println(validValuesMask, HEX);
+
+    Serial.print(F("MAX_BUFFER_BYTES : "));
+    Serial.println( encoder::MAX_BUFFER_BYTES );
+
+    // clean the output buffer
+    memset( mydata, 0, encoder::MAX_BUFFER_BYTES );
+
+    // Only encode the set of readings which were actually valid
+    // NB this might be no readings at all.
+    bytesUsed = encoder::encode( mydata, &values, validValuesMask );
+
+    Serial.print(F("Bytes used : "));
+    Serial.println(bytesUsed);
+    Serial.print(F("Message ( hex bytes ) : "));
+    int i;
+    for( i=0; i<(bytesUsed-1) ; i++ )
+    {
+        Serial.print(mydata[i],HEX);
+        Serial.print(",");
+    }
+    Serial.println(mydata[i],HEX);
 }
 
 /**
@@ -203,8 +277,8 @@ void do_sensorread_phase1(osjob_t* j)
 * @brief Read sensor values
 * @param [in] j - OS context info for this job
 * @return N/A
-* @details This job does two things - it reads from the sensors, and it encodes those
-* values in the form that will actually be transmitted. It *does not* actually
+* @details This job does two things - it reads from the sensors, and it encodes the
+* available readings in the form that will actually be transmitted. It *does not* actually
 * perform the transmit. The rationale for seperating the transmit is just to minimise
 * any uncertainty about the interval between queuing packets. The actual transmit
 * interval is not entirely within our control, as LORA is a slotted protocol and
@@ -223,37 +297,25 @@ void do_sensorread_phase2(osjob_t* j)
 
     if ( ! ( LMIC.opmode & OP_TXRXPEND ) )
     {
-        // Cause the sensors to provide readings
+        // Cause the sensors to provide readings where possible, and write them to cache.
         if( sensors::sensorTrigger() )
         {
-        struct encoder::readings values;
-        uint8_t validValuesMask = 0;
-
-            // Attempt to get the readings specified by encoder::datamask
-            // Note that we may not get all the readings we expect if the sensor
-            // did not respond to the trigger.
-            validValuesMask = getreadings::getReadings( &values );
-
-            Serial.print(F("Valid readings "));
-            Serial.println(validValuesMask);
-
-            // clean the output buffer
-            memset( mydata, 0, encoder::MAX_BUFFER_BYTES );
-
-            // Only encode the set of readings which were actually valid
-            bytesUsed = encoder::encode( mydata, &values, validValuesMask );
-
-            Serial.print(F("Bytes used "));
-            Serial.println(bytesUsed);
+            // encode the readings in the output buffer
+            // Note that the readings used here are taken from a cache, not directly from the sensor.
+            do_encode();
         }
         else
         {
-            Serial.println(F("READING SKIPPED 1"));
+            Serial.println(F("ReadPhase2 READING SKIPPED - trigger failure"));
         }
+
+        // Put the sensors to sleep, if that's a meaningful concept
+
+        sensors::sensorSleep();
     }
     else
     {
-        Serial.println(F("READING SKIPPED 2"));
+        Serial.println(F("ReadPhase2 READING SKIPPED - TX in progress"));
     }
 }
 
@@ -267,6 +329,8 @@ void do_sensorread_phase2(osjob_t* j)
 
 void do_send(osjob_t* j)
 {
+    Serial.println(F("Job Send"));
+
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND)
     {
@@ -282,25 +346,72 @@ void do_send(osjob_t* j)
 }
 
 /**
+* @brief Obtain an address for DEVEUI construction
+* @param [in] buffer - enough bytes to hold whatever form of address we are using
+* @return none
+* @details It's not necessarily the case that a MAC address must be used -
+* the purpose of this function is simply to supply a set of bytes that will
+* serve to uniquely identify the device it is running on, in the context of
+* all the other devices that will be attached to the application.
+*/
+
+void getAddress( uint8_t *buffer )
+{
+    // Currently the address we will use is the WiFi MAC address.
+    WiFi.macAddress( buffer );
+}
+
+/**
 * @brief Arduino framework setup function.
 * @param [in] None
 * @return N/A
 * @details Perform one - time power up initialisations. In particular, send a dummy
 * packet, because the successful transmission of a packet is required in order to
-* start the normal schedule of sensor reading/transmission.
+* start the normal schedule of sensor reading/transmission, as well as initiating the
+* OTAA exchange.
 */
 
 void setup( void )
 {
+uint8_t macAddress[6] = { 0,0,0,0,0,0 };
+
+    //find out our MAC address
+    getAddress( macAddress );
+
+    //Turn off WiFi and Bluetooth ( or at least, try to... TBD )
+    WiFi.mode(WIFI_OFF);
+    btStop();
+
+    //TBD pause for log viewing convenience
+    delay(5000);
+
     // Serial port for programming/debugging. Is serial 0, i.e. U0UXD, TX/GPIO1, RX/GPIO3
     // See https://circuits4you.com/2018/12/31/esp32-hardware-serial2-example/
     Serial.begin(115200);
 
-    Serial.println(F("Starting"));
-    Serial.println(F("120"));
+    Serial.print(F("MAC Address : "));
+    int i = 5;
+    for( ; i>0; i-- )
+    {
+        Serial.print( macAddress[i], HEX );
+        Serial.print(F(":"));
+    }
+    Serial.println( macAddress[i], HEX );
+
+    Serial.print(F("Starting, LORA tx interval (s) : "));
+    Serial.println(ttnotaa::TX_INTERVAL);
+    Serial.print(F("MAX_CHANNELS : "));
+    Serial.println( MAX_CHANNELS );
+    Serial.print(F("MAX_BANDS : "));
+    Serial.println( MAX_BANDS );
+    Serial.print(F("OSTICKS_PER_SEC : "));
+    Serial.println( OSTICKS_PER_SEC );
 
     // LMIC init
     os_init();
+
+    // 17 is the max power supported by the LMIC MAC
+    LMIC.txpow = 17;
 
     // Reset the MAC state. Session and pending data transfers will be discarded.
     LMIC_reset();
@@ -309,15 +420,10 @@ void setup( void )
     if ( sensors::sensorInitSensors() )
     {
         // Note that we have not scheduled any timed jobs yet.
+        // Further scheduling of jobs occurs on receipt of EV_TXCOMPLETE.
 
-        // Further scheduling of jobs occurs on receipt of EV_TXCOMPLETE
-
-        // To kick off, send blank message
-        bytesUsed = ( ( encoder::BITS_FOR_DATAMASK +
-                        encoder::BITS_FOR_PM2V5 +
-                        encoder::BITS_FOR_PM10 +
-                        encoder::BITS_FOR_TEMP +
-                        encoder::BITS_FOR_RELH ) +8 )/8 ;
+        // To kick off, encode a blank message - no sensor readings have yet been triggered
+        do_encode();
 
         // Start job (sending automatically starts OTAA too)
         do_send(&sendjob);

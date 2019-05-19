@@ -20,6 +20,14 @@
  * therefore this will also impact the encoder code.
  */
 
+ /**
+ * @file sensors.cpp
+ * @author MdeR
+ * @date 26 Apr 2019
+ * @copyright 2019 MdeR
+ * @brief This file provides an interface for handling sensors.
+ */
+
 #include <sensors.hpp>
 #include <encoder.hpp>
 
@@ -28,7 +36,34 @@ using namespace sensors;
 bool sensors::sensorStatus[ sensors::NUM_SENSORS ];
 
 /**
-* @brief
+* @brief Test if a sensor is configured ( i.e. should be initialised )
+* @param [in] <name> <parameter_description>
+* @return false if sensor not configured OR bad sensor id, else true
+* @details Test the sensorconfigured array to determine whether or not
+* a given sensor has been configured. The envisaged use of this facility
+* is mostly for testing, since sensors cannot be added/removed at runtime.
+*/
+
+bool sensors::sensorConfigured( uint8_t sensorId )
+{
+int i;
+
+   for( i=0; i<sensors::NUM_SENSORS; i++)
+   {
+       if( sensorId == sensors::sensorPresence[i].sensorId )
+       {
+           return sensors::sensorPresence[i].present;
+       }
+   }
+
+   Serial.print(F("Bad sensorId "));
+   Serial.println( sensorId );
+
+   return false;
+}
+
+/**
+* @brief Find the maximum time any sensor needs to take a reading
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
@@ -53,7 +88,7 @@ uint32_t val;
 }
 
 /**
-* @brief <brief>
+* @brief Find the maximum time any sensor needs to wakeup
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
@@ -78,18 +113,29 @@ uint32_t val;
 }
 
 /**
-* @brief <brief>
+* @brief Answer the question 'what sensor do we use for this reading ?'
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
 */
 
-int sensors::sensorValid( uint8_t readingRequired )
+int sensors::sensorValid( uint16_t readingRequired )
 {
 int retVal = -1;
 
     for( int i=0; i<sensors::NUM_SENSORS; i++)
     {
+        if( !sensors::sensorConfigured(i) )
+        {
+            // if the sensor is not configured, we cannot consider it as a
+            // potential source of readings.
+
+            Serial.print( F("Sensor not valid because not configured : ") );
+            Serial.println( i );
+
+            continue;
+        }
+
         // have we found the sensor that provides this reading ?
         // readingRequired is a bitmask with one bit set which corresponds
         // to the reading being requested.
@@ -102,6 +148,7 @@ int retVal = -1;
                 // only the validity of the sensor
 
                 // return the id of the sensor to use
+
                 retVal = i;
                 break;
             }
@@ -111,7 +158,8 @@ int retVal = -1;
     if( -1 == retVal )
     {
         // sensor is bad OR we didn't find that reading
-        Serial.println(F("Sensor or parameter not valid"));
+        Serial.print(F("Sensor or reading not valid 0x"));
+        Serial.println( readingRequired, HEX );
     }
 
     return retVal;
@@ -134,24 +182,34 @@ bool sensors::sensorInitSensors( void )
         sensors::sensorStatus[i] = false;
     }
 
-    // The idea is to initialise as many sensors as we can,
-    // and use the ones that work.
-    sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ]  = sensorSDS011Init();
-    sensors::sensorStatus[ sensors::SENSOR_ID_DHT ]     = sensorDHTInit();
+    // The idea is to initialise all the sensors that are configured, and use the ones that work.
+    if( sensors::sensorConfigured(sensors::SENSOR_ID_SDS011) )
+    {
+        sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ]  = sensors::sensorSDS011Init();
+    }
+    if( sensors::sensorConfigured(sensors::SENSOR_ID_DHT) )
+    {
+        sensors::sensorStatus[ sensors::SENSOR_ID_DHT ]     = sensors::sensorDHTInit();
+    }
+    if( sensors::sensorConfigured(sensors::SENSOR_ID_NEO6M) )
+    {
+        sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ]     = sensors::sensorNEO6MInit();
+    }
 
-    // Tell the caller if something failed
-    return (    sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] &&
-                sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] ) ;
+    // Tell the caller if one of the attempted init's failed - not being configured is not a failure
+    return (    ( !sensors::sensorConfigured(sensors::SENSOR_ID_SDS011) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] ) &&
+                ( !sensors::sensorConfigured(sensors::SENSOR_ID_DHT) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] ) &&
+                ( !sensors::sensorConfigured(sensors::SENSOR_ID_NEO6M) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] ) ) ;
 }
 
 /**
-* @brief <brief>
+* @brief Provide specific reading from the specified sensor.
 * @param [in] <name> <parameter_description>
 * @return <return_description>
 * @details <details>
 */
 
-bool sensors::sensorReading( int sensorId, uint8_t readingMask, int* valuePtr )
+bool sensors::sensorReading( int sensorId, uint16_t readingMask, int* valuePtr )
 {
 int retVal = false;
 
@@ -169,6 +227,16 @@ int retVal = false;
             retVal = sensors::sensorDHTRead( readingMask, valuePtr );
             break;
         }
+    case SENSOR_ID_NEO6M:
+        {
+            retVal = sensors::sensorNEO6MRead( readingMask, valuePtr );
+            break;
+        }
+    default:
+        {
+            Serial.print(F("Requesting unknown sensor "));
+            Serial.println( sensorId );
+        }
     }
 
     return retVal;
@@ -183,19 +251,30 @@ int retVal = false;
 
 bool sensors::sensorTrigger( void )
 {
-bool retVal = false;
+bool retVal = true;
 
     // trigger all sensors to provide readings
-
     for( int i=0; i<sensors::NUM_SENSORS; i++ )
     {
-        if( !sensors::sensorDescriptors[i].triggerFunc() )
+        // Do not trigger sensors which are not configured
+        if( sensors::sensorConfigured(i) )
         {
-            // failed to trigger a sensor
-            Serial.println(F("Sensor failed to trigger"));
+            Serial.print(F("Triggering read from sensor : "));
+            Serial.println( i );
 
-            retVal = false;
-            break;
+            if( !( sensors::sensorDescriptors[i].triggerFunc() ) )
+            {
+                // failed to trigger a sensor
+                Serial.println(F("Sensor failed to trigger"));
+
+                retVal = false;
+                break;
+            }
+        }
+        else
+        {
+            // it's not a trigger failure if the sensor is not configured
+            Serial.println(F("Sensor not available to be triggered"));
         }
     }
 
@@ -213,4 +292,19 @@ void sensors::sensorWakeup( void )
 {
     sensors::sensorSDS011Wakeup();
     sensors::sensorDHTWakeup();
+    sensors::sensorNEO6MWakeup();
+}
+
+/**
+* @brief Put sensors into low power state if possible
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+void sensors::sensorSleep( void )
+{
+    sensors::sensorSDS011Sleep();
+    sensors::sensorDHTSleep();
+    sensors::sensorNEO6MSleep();
 }

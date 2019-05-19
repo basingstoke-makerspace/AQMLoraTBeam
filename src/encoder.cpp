@@ -15,6 +15,15 @@
  *
  *******************************************************************************/
 
+/**
+* @file encoder.cpp
+* @author MdeR
+* @date 26 Apr 2019
+* @copyright 2019 MdeR
+* @brief This file contains functions concerned with writing a bitwise encoding
+* of a set of readings into an output buffer.
+*/
+
 #include <cstdint>
 #include <HardwareSerial.h>
 
@@ -37,17 +46,20 @@ using namespace encoder;
 void encoder::getBit( int bitPosition, int* byteOffsetPtr, uint8_t* maskPtr )
 {
     *byteOffsetPtr = bitPosition/8;
+
+    assert( *byteOffsetPtr < encoder::MAX_BUFFER_BYTES );
+
     *maskPtr = 0xF0 >> (bitPosition % 8);
 }
 
 /**
-* @brief <brief>
+* @brief Using current value of a valid reading, write a bitfield into the output buffer.
 * @param [in] <name> <parameter_description>
-* @return <return_description>
+* @return  Number of bytes of data written to the output buffer.
 * @details <details>
 */
 
-int encoder::writeBitfield( uint8_t maskBit, int value, int* currentBitPositionPtr, uint8_t* outputBufferPtr, uint8_t validValuesMask)
+int encoder::writeBitfield( uint16_t maskBit, int value, int* currentBitPositionPtr, uint8_t* outputBufferPtr, uint16_t validValuesMask)
 {
 int retVal;
 
@@ -70,6 +82,12 @@ int retVal;
         // write the specified number of bits in the direction MSB->LSB.
         // assume that currentBitPosition is position of first bit to write.
 
+        Serial.print(F("Encoding "));
+        Serial.print( maskBit, HEX );
+        Serial.print(F(" in "));
+        Serial.print( encoder::bitfields[i].numberOfBits );
+        Serial.println(F(" bits"));
+
         // turn the current bit position into a byte offset and mask
         getBit( *currentBitPositionPtr, &byteOffset, &byteMask );
 
@@ -77,6 +95,9 @@ int retVal;
         for( n=encoder::bitfields[i].numberOfBits; n>0; n-- )
         {
         int valueMask = 1;
+
+            //Serial.print(F("Byteoffset is "));
+            //Serial.println( byteOffset );
 
             valueMask <<= (n-1) ;
 
@@ -100,7 +121,10 @@ int retVal;
     }
     else
     {
-        Serial.println(F("Parameter unavailable"));
+        Serial.print(F("Reading 0x"));
+        Serial.print( maskBit, HEX );
+        Serial.println(F(" unavailable"));
+
         retVal = 0;
     }
 
@@ -114,13 +138,14 @@ int retVal;
 * @details <details>
 */
 
-int encoder::encode( uint8_t* outputBufferPtr, struct encoder::readings* valuesPtr, uint8_t validValuesMask )
+int encoder::encode( uint8_t* outputBufferPtr, struct encoder::readings* valuesPtr, uint16_t validValuesMask )
 {
 int currentBitPosition = 0;
 int bitsWritten = 0;
 
     // Tell the remote end what fields it is actually receiving
-    outputBufferPtr[0] = validValuesMask;
+    outputBufferPtr[0] = (validValuesMask & 0xFF00) >> 8;
+    outputBufferPtr[1] = (validValuesMask & 0x00FF);
 
     // Assumption is that the validValuesMask cannot be larger than the datamask.
     currentBitPosition += encoder::BITS_FOR_DATAMASK;
@@ -135,6 +160,12 @@ int bitsWritten = 0;
     bitsWritten += writeBitfield( encoder::DATA_CONTAINS_RELH , valuesPtr->relh , &currentBitPosition, outputBufferPtr, validValuesMask);
     bitsWritten += writeBitfield( encoder::DATA_CONTAINS_NOX  , valuesPtr->nox  , &currentBitPosition, outputBufferPtr, validValuesMask);
     bitsWritten += writeBitfield( encoder::DATA_CONTAINS_CO2  , valuesPtr->co2  , &currentBitPosition, outputBufferPtr, validValuesMask);
+    bitsWritten += writeBitfield( encoder::DATA_CONTAINS_LAT  , valuesPtr->lat  , &currentBitPosition, outputBufferPtr, validValuesMask);
+    bitsWritten += writeBitfield( encoder::DATA_CONTAINS_LON  , valuesPtr->lon  , &currentBitPosition, outputBufferPtr, validValuesMask);
+    bitsWritten += writeBitfield( encoder::DATA_CONTAINS_ALT  , valuesPtr->alt  , &currentBitPosition, outputBufferPtr, validValuesMask);
+
+    Serial.print(F("Bits to write : "));
+    Serial.println( bitsWritten );
 
     // output buffer should now be ready
     // return number of bytes used in the output buffer

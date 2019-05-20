@@ -31,22 +31,119 @@ static TinyGPSPlus gps;
 
 static struct sensors::sensorNEO6MReadings sensorNEO6MLatestReadings;
 
+static HardwareSerial* NEO6MSerialPtr = &Serial1;
+
+/**
+* @brief Calculate fletcher CRC for UBX messages
+* @param [in] dataPtr   - ( pointer to ) bytes to create checksum for
+*             size      - number of bytes to process
+*       [out] outputPtr - ( pointer to ) two bytes to receive checksum
+* @return None
+* @details
+*/
+
+void sensors::sensorNEO6MUBXCRC( const uint8_t* dataPtr, uint32_t size, uint8_t* outputPtr )
+{
+uint32_t crc_a = 0;
+uint32_t crc_b = 0;
+
+    assert( dataPtr != NULL && outputPtr != NULL );
+
+    if (size > 0)
+    {
+        do
+        {
+            crc_a += *dataPtr++;
+            crc_b += crc_a;
+        }
+        while (--size);
+
+        crc_a &= 0xff;
+        crc_b &= 0xff;
+    }
+
+    Serial.print( F("NEO6M ubx checksum : "));
+    Serial.print( crc_a, HEX );
+    Serial.println( crc_b, HEX);
+
+    *outputPtr = crc_a;
+    outputPtr++;
+    *outputPtr = crc_b;
+}
+
+/**
+* @brief <brief>
+* @param [in] <name> <parameter_description>
+* @return <return_description>
+* @details <details>
+*/
+
+bool sensors::sensorNEO6MSendCommand( uint32_t cmd )
+{
+int     retVal;
+uint8_t crc[2];
+
+    //Using ESP32 hardware UART U0UXD
+
+    sensors::sensorNEO6MUBXCRC( sensors::NEO6MCommands[ cmd ].command, sensors::NEO6MCommands[ cmd ].length, crc );
+
+    retVal = NEO6MSerialPtr->write( sensors::NEO6MCommands[ cmd ].command, sensors::NEO6MCommands[ cmd ].length );
+    retVal += NEO6MSerialPtr->write( crc, 2 );
+
+    if( retVal != ( sensors::NEO6MCommands[ cmd ].length + 2 ) )
+    {
+        Serial.print(F("NEO6M Command NOT sent : "));
+        Serial.print( NEO6M_COMMAND_NAME[ cmd ] );
+        Serial.print( " " );
+        Serial.println( retVal );
+
+        return false;
+    }
+    else
+    {
+        Serial.print(F("NEO6M Command sent : "));
+        Serial.println( NEO6M_COMMAND_NAME[cmd] );
+
+        return true;
+    }
+}
+
 /**
 * @brief Configure hardware serial for GPS Module comms
 * @param [in] None
 * @return true if initialisation was successful, else false
-* @details Not much to do here. Set up the serial comms with the
-* GPS module. Would like to put the module into low power mode
-* inbetween reads, but don't know how to do that - TBD
+* @details This sensor is built in to the TTGO board and defaults
+* to 'on' state. Therefore,if it is not configured, assume that
+* it should be switched off and remain switched off. Otherwise,
+* put it into Power Save Mode.
 */
 
 bool sensors::sensorNEO6MInit( void )
 {
-    Serial1.begin(9600, SERIAL_8N1, 12, 15);   //17-TX 18-RX
 
-    Serial1.setRxBufferSize( sensors::NEO6M_SERIAL_HARDWAREBUFFERSIZE );
+    NEO6MSerialPtr->begin(9600, SERIAL_8N1, 12, 15);
 
-    sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] = true;
+    if( !sensors::sensorPresent(sensors::SENSOR_ID_NEO6M) )
+    {
+        // Switch off. This overrides PSM settings. The device will stay OFF
+        // until a wake event, which is a hardware signal that it will never get.
+        sensors::sensorNEO6MSendCommand( sensors::NEO6M_CMDID_RXM_PMREQ_BACKUP );
+
+        // Sensor is not active - cannot provide a reading
+        sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] = false;
+
+        Serial.println(F("Sensor NEO6M switched to Backup ( OFF )"));
+    }
+    else
+    {
+        // Put the device into Power Save Mode
+        sensors::sensorNEO6MSendCommand( sensors::NEO6M_CMDID_CFG_RXM_PSM );
+
+        // Configure power save mode
+        sensors::sensorNEO6MSendCommand( sensors::NEO6M_CMDID_CFG_PM2_PSM );
+
+        Serial.println(F("Sensor NEO6M configured in PSM, mode ON/OFF"));
+    }
 
     Serial.println(F("Sensor NEO6M Init OK"));
 
@@ -114,11 +211,21 @@ bool sensors::sensorNEO6MGetReadings( void )
 bool retVal = false;
 unsigned long start = millis();
 
+    // Because the Arduino/ESP32 uart handling offers no better way of doing this,
+    // ditch old queued characters ( there's a queue on top of the rxfifo...) by
+    // reading them, and flush the rx/tx buffers. We don't want old data here.
+    // The flush() call flushes the rx buffer ( crudely, by repeated reads )
+    // despite the Arduino documentation only referring to the tx buffer ( and
+    // then only to say that it doesn't actually flush it ).
+
+    while( NEO6MSerialPtr->available() > 0 ) NEO6MSerialPtr->read();
+    NEO6MSerialPtr->flush();
+
     do
     {
-        while (Serial1.available())
+        while (NEO6MSerialPtr->available())
         {
-            gps.encode(Serial1.read());
+            gps.encode(NEO6MSerialPtr->read());
         }
 
         if( gps.sentencesWithFix() > 0 )

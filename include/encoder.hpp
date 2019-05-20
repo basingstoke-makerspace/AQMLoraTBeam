@@ -108,7 +108,10 @@ const uint16_t datamask =   DATA_CONTAINS_PM2V5 |
 */
 
 const uint16_t datamask =   DATA_CONTAINS_PM2V5 |
-                            DATA_CONTAINS_PM10 ;
+                            DATA_CONTAINS_PM10 |
+                            DATA_CONTAINS_LAT |
+                            DATA_CONTAINS_LON |
+                            DATA_CONTAINS_ALT ;
 
 // Metadata for bitfields to be encoded
 struct BitfieldDescriptor

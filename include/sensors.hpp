@@ -43,7 +43,7 @@ namespace sensors
     const uint32_t  SENSOR_ID_DHT    = 1;
     const uint32_t  SENSOR_ID_NEO6M  = 2;
 
-    // The number of different sensors attached to the system.
+    // The maximum number of different sensors attached to the system.
     const uint32_t  NUM_SENSORS = 3;
 
     // collect information about a sensor in one place
@@ -77,7 +77,7 @@ namespace sensors
     {
         { SENSOR_ID_SDS011, true },
         { SENSOR_ID_DHT,    false }, // FALSE - MdeR 01/05/19 debug
-        { SENSOR_ID_NEO6M,  false }, // FALSE - MdeR 15/05/19 debug
+        { SENSOR_ID_NEO6M,  true }
     };
 
     // non const - can only be worked out at runtime
@@ -85,7 +85,7 @@ namespace sensors
 
    // sensor interface
    //***********************************
-    bool        sensorConfigured( uint8_t sensorId );
+    bool        sensorPresent( uint8_t sensorId );
     bool        sensorInitSensors( void );
     int         sensorValid( uint16_t readingRequired );
     bool        sensorReading( int sensorId, uint16_t readingMask, int* valuePtr );

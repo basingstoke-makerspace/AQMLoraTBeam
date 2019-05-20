@@ -145,7 +145,7 @@ float relHum;
 
 void sensors::sensorDHTWakeup( void )
 {
-    Serial.println("Waking up DHT"); // TBD Null operation
+    Serial.println("Waking up DHT - nothing to do"); // TBD Null operation
 }
 
 /**

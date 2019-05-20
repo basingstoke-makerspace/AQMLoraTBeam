@@ -12,12 +12,20 @@
  * the data which is available, rather than just report nothing at all.
  * Therefore all initialisations will be attempted.
  *
+ * In cases where an error is encountered that affects one sensor, that
+ * sensor is marked as 'not available'. This means that further attempts to
+ * read from this sensor should not occur. This is a run-time setting.
+ *
  * Sensors do not always provide just one type of reading. Reading type and
  * sensor type are therefore different, and a mapping is needed between sensor
  * type and reading type.
  *
  * Adding an additional sensor will usually add additional readings, and
  * therefore this will also impact the encoder code.
+ *
+ * Sensors may be 'present' or 'not present'. 'not present' means
+ * that the code should behave as if that sensor was not physically present.
+ * This is a compile time setting.
  */
 
  /**
@@ -36,15 +44,16 @@ using namespace sensors;
 bool sensors::sensorStatus[ sensors::NUM_SENSORS ];
 
 /**
-* @brief Test if a sensor is configured ( i.e. should be initialised )
-* @param [in] <name> <parameter_description>
-* @return false if sensor not configured OR bad sensor id, else true
-* @details Test the sensorconfigured array to determine whether or not
-* a given sensor has been configured. The envisaged use of this facility
+* @brief Test if a sensor is present ( i.e. should be initialised )
+* @param [in] sensorId - identity of the sensor whose presence should be
+* tested.
+* @return false if sensor not present OR bad sensor id, else true
+* @details Test the sensorPresence array to determine whether or not
+* a given sensor is present. The envisaged use of this facility
 * is mostly for testing, since sensors cannot be added/removed at runtime.
 */
 
-bool sensors::sensorConfigured( uint8_t sensorId )
+bool sensors::sensorPresent( uint8_t sensorId )
 {
 int i;
 
@@ -56,7 +65,7 @@ int i;
        }
    }
 
-   Serial.print(F("Bad sensorId "));
+   Serial.print(F("Bad sensorId : "));
    Serial.println( sensorId );
 
    return false;
@@ -64,8 +73,9 @@ int i;
 
 /**
 * @brief Find the maximum time any sensor needs to take a reading
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @param [in] None
+* @return The maximum read time given for any single sensor which is
+* present.
 * @details <details>
 */
 
@@ -76,11 +86,14 @@ uint32_t val;
 
     for( int i=0; i<sensors::NUM_SENSORS; i++)
     {
-        val = sensors::sensorDescriptors[i].maxReadtime;
-
-        if( maxVal < val )
+        if( sensors::sensorPresent(i) )
         {
-            maxVal = val;
+            val = sensors::sensorDescriptors[i].maxReadtime;
+
+            if( maxVal < val )
+            {
+                maxVal = val;
+            }
         }
     }
 
@@ -101,11 +114,14 @@ uint32_t val;
 
     for( int i=0; i<sensors::NUM_SENSORS; i++)
     {
-        val = sensors::sensorDescriptors[i].wakeupMilliseconds;
-
-        if( maxVal < val )
+        if( sensors::sensorPresent(i) )
         {
-            maxVal = val;
+            val = sensors::sensorDescriptors[i].wakeupMilliseconds;
+
+            if( maxVal < val )
+            {
+                maxVal = val;
+            }
         }
     }
 
@@ -125,12 +141,12 @@ int retVal = -1;
 
     for( int i=0; i<sensors::NUM_SENSORS; i++)
     {
-        if( !sensors::sensorConfigured(i) )
+        if( !sensors::sensorPresent(i) )
         {
-            // if the sensor is not configured, we cannot consider it as a
+            // if the sensor is not present, we cannot consider it as a
             // potential source of readings.
 
-            Serial.print( F("Sensor not valid because not configured : ") );
+            Serial.print( F("Sensor not valid because not present : ") );
             Serial.println( i );
 
             continue;
@@ -182,24 +198,24 @@ bool sensors::sensorInitSensors( void )
         sensors::sensorStatus[i] = false;
     }
 
-    // The idea is to initialise all the sensors that are configured, and use the ones that work.
-    if( sensors::sensorConfigured(sensors::SENSOR_ID_SDS011) )
+    // The idea is to initialise all the sensors that are present, and use the ones that work.
+    if( sensors::sensorPresent(sensors::SENSOR_ID_SDS011) )
     {
         sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ]  = sensors::sensorSDS011Init();
     }
-    if( sensors::sensorConfigured(sensors::SENSOR_ID_DHT) )
+    if( sensors::sensorPresent(sensors::SENSOR_ID_DHT) )
     {
         sensors::sensorStatus[ sensors::SENSOR_ID_DHT ]     = sensors::sensorDHTInit();
     }
-    if( sensors::sensorConfigured(sensors::SENSOR_ID_NEO6M) )
+    if( sensors::sensorPresent(sensors::SENSOR_ID_NEO6M) )
     {
         sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ]     = sensors::sensorNEO6MInit();
     }
 
-    // Tell the caller if one of the attempted init's failed - not being configured is not a failure
-    return (    ( !sensors::sensorConfigured(sensors::SENSOR_ID_SDS011) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] ) &&
-                ( !sensors::sensorConfigured(sensors::SENSOR_ID_DHT) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] ) &&
-                ( !sensors::sensorConfigured(sensors::SENSOR_ID_NEO6M) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] ) ) ;
+    // Tell the caller if one of the attempted init's failed - not being present is not a failure
+    return (    ( !sensors::sensorPresent(sensors::SENSOR_ID_SDS011) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] ) &&
+                ( !sensors::sensorPresent(sensors::SENSOR_ID_DHT) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_DHT ] ) &&
+                ( !sensors::sensorPresent(sensors::SENSOR_ID_NEO6M) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] ) ) ;
 }
 
 /**
@@ -256,8 +272,8 @@ bool retVal = true;
     // trigger all sensors to provide readings
     for( int i=0; i<sensors::NUM_SENSORS; i++ )
     {
-        // Do not trigger sensors which are not configured
-        if( sensors::sensorConfigured(i) )
+        // Do not trigger sensors which are not present
+        if( sensors::sensorPresent(i) )
         {
             Serial.print(F("Triggering read from sensor : "));
             Serial.println( i );
@@ -273,7 +289,7 @@ bool retVal = true;
         }
         else
         {
-            // it's not a trigger failure if the sensor is not configured
+            // it's not a trigger failure if the sensor is not present
             Serial.println(F("Sensor not available to be triggered"));
         }
     }

@@ -158,7 +158,7 @@ void onEvent (ev_t ev)
                 Serial.print(F("Read time :"));
                 Serial.println( readTime );
 
-                // send time is read time point the maximum time to read. 1s leeway.
+                // send time is read time plus the maximum time to read. 1s leeway.
                 int sendTime = readTime + sec2osticks( 1 + sensors::sensorMaxReadtime()/1000 );
 
                 Serial.print(F("Send time :"));
@@ -279,10 +279,14 @@ void do_sensorread_phase1(osjob_t* j)
 * @return N/A
 * @details This job does two things - it reads from the sensors, and it encodes the
 * available readings in the form that will actually be transmitted. It *does not* actually
-* perform the transmit. The rationale for seperating the transmit is just to minimise
-* any uncertainty about the interval between queuing packets. The actual transmit
-* interval is not entirely within our control, as LORA is a slotted protocol and
-* transmissions by other parties may affect when we are actually allowed to transmit.
+* perform the transmit.
+*
+* The rationale for seperating the transmit is just to minimise any uncertainty about the
+* interval between queuing packets, i.e. we do not want to have a variable amount of work to
+* do at the point in time that transmission is required.
+*
+* The actual transmit interval is not entirely within our control, as LORA is a slotted
+* protocol and transmissions by other parties may affect when we are actually allowed to transmit.
 */
 
 void do_sensorread_phase2(osjob_t* j)

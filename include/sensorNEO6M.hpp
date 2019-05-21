@@ -39,7 +39,10 @@
     const char* const NEO6M_COMMAND_NAME[] = {   "RXM_PMREQ_BACKUP", "CFG_RXM_PSM", "CFG_PM2_PSM" };
 
     // Byte sequences for commands. Section references are to the document
-    // "u-blox 6 Receiver Description", GPS.G6-SW-10018-F
+    // "u-blox 6 Receiver Description", GPS.G6-SW-10018-F.
+
+    // NB CRC IS ADDED AT RUNTIME to avoid hassle if something in
+    // one of the messages needs to be altered.
 
     // 36.3.1 Requests a Power Management task
     // Use to put system into indefinite backup mode ( 'OFF' )

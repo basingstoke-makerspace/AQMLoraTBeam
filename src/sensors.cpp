@@ -130,9 +130,12 @@ uint32_t val;
 
 /**
 * @brief Answer the question 'what sensor do we use for this reading ?'
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @param [in] readingRequired - the reading for which we need a mapping to sensor
+* @return -1 if there is a reading/sensor mismatch, otherwise the id of the sensor
+* providing this reading.
+* @details Search through all the sensors for one that supports this reading. Trap
+* the condition where the sensor is not present, but do not assume that the reading
+* cannot be provided until all sensors have been tried.
 */
 
 int sensors::sensorValid( uint16_t readingRequired )
@@ -141,23 +144,22 @@ int retVal = -1;
 
     for( int i=0; i<sensors::NUM_SENSORS; i++)
     {
-        if( !sensors::sensorPresent(i) )
-        {
-            // if the sensor is not present, we cannot consider it as a
-            // potential source of readings.
-
-            Serial.print( F("Sensor not valid because not present : ") );
-            Serial.println( i );
-
-            continue;
-        }
-
         // have we found the sensor that provides this reading ?
         // readingRequired is a bitmask with one bit set which corresponds
         // to the reading being requested.
         if(  sensors::sensorDescriptors[i].readings & readingRequired   )
         {
-            if( sensors::sensorStatus[i] )
+            if( !sensors::sensorPresent(i) )
+            {
+                // if the sensor is not present, we cannot consider it as a
+                // potential source of readings.
+
+                Serial.print( F("Sensor not valid because not present : ") );
+                Serial.println( i );
+
+                continue;
+            }
+            else if( sensors::sensorStatus[i] )
             {
                 // Sensor is good and the reading can be used
                 // NB : we do not establish validity of a particular reading here,
@@ -182,9 +184,9 @@ int retVal = -1;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @brief Initialise the sensors. Handle non-present sensors and onboard sensors.
+* @param [in] None
+* @return true if no present sensor failed to initialise, else false
 * @details <details>
 */
 
@@ -199,18 +201,21 @@ bool sensors::sensorInitSensors( void )
     }
 
     // The idea is to initialise all the sensors that are present, and use the ones that work.
+    // But must treat on-board sensors as a special case, since they may be 'on' by default, so
+    // allow Init to sort this out.
     if( sensors::sensorPresent(sensors::SENSOR_ID_SDS011) )
     {
         sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ]  = sensors::sensorSDS011Init();
     }
+
     if( sensors::sensorPresent(sensors::SENSOR_ID_DHT) )
     {
         sensors::sensorStatus[ sensors::SENSOR_ID_DHT ]     = sensors::sensorDHTInit();
     }
-    if( sensors::sensorPresent(sensors::SENSOR_ID_NEO6M) )
-    {
-        sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ]     = sensors::sensorNEO6MInit();
-    }
+
+    // On board sensors may require active disabling.
+    sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ]       = sensors::sensorNEO6MInit();
+
 
     // Tell the caller if one of the attempted init's failed - not being present is not a failure
     return (    ( !sensors::sensorPresent(sensors::SENSOR_ID_SDS011) ? true : sensors::sensorStatus[ sensors::SENSOR_ID_SDS011 ] ) &&
@@ -259,9 +264,9 @@ int retVal = false;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @brief Cause all present sensors to read their readings
+* @param [in] None
+* @return true if all present sensors report success, otherwise false
 * @details <details>
 */
 
@@ -298,29 +303,79 @@ bool retVal = true;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @brief Attempt to wake up all present sensors
+* @param [in] None
+* @return None
 * @details <details>
 */
 
 void sensors::sensorWakeup( void )
 {
-    sensors::sensorSDS011Wakeup();
-    sensors::sensorDHTWakeup();
-    sensors::sensorNEO6MWakeup();
+    // Only wake up configured sensors
+    if( sensors::sensorPresent( sensors::SENSOR_ID_SDS011 ) )
+    {
+        sensors::sensorSDS011Wakeup();
+    }
+    else
+    {
+        Serial.print(F("Sensor not present, not waking : "));
+        Serial.println( sensors::SENSOR_ID_SDS011 );
+    }
+    if( sensors::sensorPresent( sensors::SENSOR_ID_DHT ) )
+    {
+        sensors::sensorDHTWakeup();
+    }
+    else
+    {
+        Serial.print(F("Sensor not present, not waking : "));
+        Serial.println( sensors::SENSOR_ID_DHT );
+    }
+    if( sensors::sensorPresent( sensors::SENSOR_ID_NEO6M ) )
+    {
+        sensors::sensorNEO6MWakeup();
+    }
+    else
+    {
+        Serial.print(F("Sensor not present, not waking : "));
+        Serial.println( sensors::SENSOR_ID_NEO6M );
+    }
 }
 
 /**
 * @brief Put sensors into low power state if possible
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @param [in] None
+* @return None
 * @details <details>
 */
 
 void sensors::sensorSleep( void )
 {
-    sensors::sensorSDS011Sleep();
-    sensors::sensorDHTSleep();
-    sensors::sensorNEO6MSleep();
+    // Only sleep configured sensors
+    if( sensors::sensorPresent( sensors::SENSOR_ID_SDS011 ) )
+    {
+        sensors::sensorSDS011Sleep();
+    }
+    else
+    {
+        Serial.print(F("Sensor not present, not sleeping : "));
+        Serial.println( sensors::SENSOR_ID_SDS011 );
+    }
+    if( sensors::sensorPresent( sensors::SENSOR_ID_DHT ) )
+    {
+        sensors::sensorDHTSleep();
+    }
+    else
+    {
+        Serial.print(F("Sensor not present, not sleeping : "));
+        Serial.println( sensors::SENSOR_ID_DHT );
+    }
+    if( sensors::sensorPresent( sensors::SENSOR_ID_NEO6M ) )
+    {
+        sensors::sensorNEO6MSleep();
+    }
+    else
+    {
+        Serial.print(F("Sensor not present, not sleeping : "));
+        Serial.println( sensors::SENSOR_ID_NEO6M );
+    }
 }

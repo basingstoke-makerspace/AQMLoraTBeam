@@ -18,14 +18,16 @@
     const size_t    SDS011_SERIAL_HARDWAREBUFFERSIZE = 32;
 
     // There is a 'wake up' time, for which the sensor needs to be continuously powered before it is
-    // safe to read from it. Time in ms.
+    // safe to read from it. Time in ms. In theory this should be 15s, but in practice that is not
+    // reliable.
     const uint32_t  SDS011_WAKEUP = 20000;
 
     // There is a maximum time allowed for a read to complete. Time in ms.
-    const uint32_t  SDS011_MAX_READ_TIME = 5000;
+    // In theory, this should be 2s, but in practice that is not reliable.
+    const uint32_t  SDS011_MAX_READ_TIME = 3000;
 
-    // Number of milliseconds for the Checkwait delay. delay is a crude blocking wait,
-    // too high a value may block important processes.
+    // Number of milliseconds for the Checkwait delay. In ESP32 environment, delay uses yield()
+    // so should not block other processes.
     const uint32_t  SDS011_CHECKWAIT_DELAY = 50;
 
     // Should we stop this sensor after a reading ?
@@ -115,10 +117,11 @@
     bool    sensorSDS011Init( void );
     bool    sensorSDS011Checkwait( void );
     int     sensorSDS011ReadByte( void );
-    bool    sensorSDS011SkipUntilByte( int target );
     bool    sensorSDS011ValidateMsg( int* msgPtr );
+    bool    sensorSDS011WaitForMessage( void );
+    void    sensorSDS011GetMsgBytes( int* rxBufferPtr );
     bool    sensorSDS011GetReadings( void );
-    bool    sensorSDS011SendCommand( uint32_t cmd);
+    bool    sensorSDS011SendCommand( uint32_t cmd );
     bool    sensorSDS011Read( uint16_t readingMask, int* valuePtr );
     void    sensorSDS011Wakeup( void );
     void    sensorSDS011Sleep( void );

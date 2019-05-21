@@ -29,6 +29,7 @@ using namespace sensors;
 
 static TinyGPSPlus gps;
 
+// Cache for sensor readings. Read by encoder.
 static struct sensors::sensorNEO6MReadings sensorNEO6MLatestReadings;
 
 static HardwareSerial* NEO6MSerialPtr = &Serial1;
@@ -36,7 +37,7 @@ static HardwareSerial* NEO6MSerialPtr = &Serial1;
 /**
 * @brief Calculate fletcher CRC for UBX messages
 * @param [in] dataPtr   - ( pointer to ) bytes to create checksum for
-*             size      - number of bytes to process
+*             size      - number of bytes to process from dataPtr
 *       [out] outputPtr - ( pointer to ) two bytes to receive checksum
 * @return None
 * @details
@@ -72,9 +73,9 @@ uint32_t crc_b = 0;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @brief Send a UBX command to the NEO6M
+* @param [in] cmd - id of the command to send
+* @return true if command written OK, else false
 * @details <details>
 */
 
@@ -87,6 +88,8 @@ uint8_t crc[2];
 
     sensors::sensorNEO6MUBXCRC( sensors::NEO6MCommands[ cmd ].command, sensors::NEO6MCommands[ cmd ].length, crc );
 
+    //Use two writes, otherwise would need to copy command into a writeable
+    //buffer to add CRC.
     retVal = NEO6MSerialPtr->write( sensors::NEO6MCommands[ cmd ].command, sensors::NEO6MCommands[ cmd ].length );
     retVal += NEO6MSerialPtr->write( crc, 2 );
 
@@ -133,6 +136,11 @@ bool sensors::sensorNEO6MInit( void )
         sensors::sensorStatus[ sensors::SENSOR_ID_NEO6M ] = false;
 
         Serial.println(F("Sensor NEO6M switched to Backup ( OFF )"));
+
+        // Don't need the serial port again. NB This port is currently an alias
+        // for 'Serial1', Serial1 will not be usable after this call without
+        // another 'begin'.
+        NEO6MSerialPtr->end();
     }
     else
     {
@@ -209,7 +217,7 @@ void sensors::sensorNEO6MWakeup( void )
 bool sensors::sensorNEO6MGetReadings( void )
 {
 bool retVal = false;
-unsigned long start = millis();
+unsigned long start;
 
     // Because the Arduino/ESP32 uart handling offers no better way of doing this,
     // ditch old queued characters ( there's a queue on top of the rxfifo...) by
@@ -221,6 +229,7 @@ unsigned long start = millis();
     while( NEO6MSerialPtr->available() > 0 ) NEO6MSerialPtr->read();
     NEO6MSerialPtr->flush();
 
+    start = millis();
     do
     {
         while (NEO6MSerialPtr->available())

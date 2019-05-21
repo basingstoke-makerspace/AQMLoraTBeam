@@ -33,6 +33,7 @@
 
 using namespace sensors;
 
+// Cache for sensor readings. Read by encoder.
 static struct sensors::sensorSDS011Readings sensorSDS011LatestReadings;
 
 static HardwareSerial* SDS011SerialPtr = &Serial2;
@@ -46,7 +47,7 @@ static HardwareSerial* SDS011SerialPtr = &Serial2;
 * buffer.
 */
 
-bool sensors::sensorSDS011Init(void)
+bool sensors::sensorSDS011Init( void )
 {
     // set up the serial port. Use ESP32  hardware UART 2 ( U2UXD ),
     // This port is accessed via Serial2
@@ -84,7 +85,7 @@ bool sensors::sensorSDS011Init(void)
 * @details <details>
 */
 
-bool sensors::sensorSDS011SendCommand( uint32_t cmd)
+bool sensors::sensorSDS011SendCommand( uint32_t cmd )
 {
 int retVal;
 
@@ -110,43 +111,10 @@ int retVal;
 }
 
 /**
-* @brief Wait for a message, but only for a certain length of time
+* @brief Read a byte from the SDS011 serial queue/buffer
 * @param [in] None
-* @return true if we are still waiting, else false.
-* @details Called repeatedly whilst waiting for the SDS011 UART to accumulate
-* enough characters in it's rx buffer to be sure we have a complete message.
-* When a certain length of time has expired, indicate that we are done with
-* waiting.
-*/
-
-bool sensors::sensorSDS011Checkwait( void )
-{
-static unsigned int totalWaitMilliseconds=0;
-bool                retVal;
-
-    if( totalWaitMilliseconds > (sensors::SDS011_MAX_READ_TIME) )
-    {
-        // we can't wait any longer
-        Serial.print(F("SDS011 Maximum wait exceeded : "));
-        Serial.println( totalWaitMilliseconds );
-        totalWaitMilliseconds = 0;
-        retVal = false;
-    }
-    else
-    {
-        delay(SDS011_CHECKWAIT_DELAY);
-        totalWaitMilliseconds+=SDS011_CHECKWAIT_DELAY;
-        retVal = true;
-    }
-
-    return retVal;
-}
-
-/**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
+* @return 0xDEADBEEF if byte not read, else 0x00-0xFF
+* @details Exits if UART error, otherwise returns value
 */
 
 int sensors::sensorSDS011ReadByte( void )
@@ -169,46 +137,9 @@ int byte=0xDEADBEEF;
 }
 
 /**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
-* @details <details>
-*/
-
-bool sensors::sensorSDS011SkipUntilByte( int target )
-{
-int  byte   = 0xDEADBEEF;
-bool retVal = false;
-
-  	while( SDS011SerialPtr->available() > 0 )
-    {
-        // Throw away bytes until we get the target byte
-
-        byte = sensors::sensorSDS011ReadByte();
-
-        if( byte == target )
-        {
-            retVal = true;
-            break;
-        }
-        else
-        {
-            if( !sensors::sensorSDS011Checkwait() )
-            {
-                // This read has failed
-                retVal = false;
-                break;
-            }
-        }
-    }
-
-    return retVal;
-}
-
-/**
-* @brief <brief>
-* @param [in] <name> <parameter_description>
-* @return <return_description>
+* @brief Check checksum for received SDS011 message
+* @param [in] msgPtr ( pointer to ) buffer containing SDS011 message
+* @return true if checksum OK, else false
 * @details <details>
 */
 
@@ -238,6 +169,67 @@ int     msgChk = 0;
 }
 
 /**
+* @brief Wait until a whole SDS011 message is available
+* @param [in] None
+* @return true if buffer filled OK, else false
+* @details To keep parsing quick and simple, we just want
+* to deal with a buffer that we know contains a whole
+* message somewhere. Trade off some time spent receiving
+* in order to achieve this.
+*/
+
+bool sensors::sensorSDS011WaitForMessage( void )
+{
+int     start=0;
+int     bytesAvailable = 0xDEADBEEF;
+
+    start = millis();
+    while( (bytesAvailable = SDS011SerialPtr->available()) < 2*sensors::SDS011_RESP_SIZE )
+    {
+        if( millis()-start > sensors::SDS011_MAX_READ_TIME )
+        {
+            Serial.print(F("SDS011 bytesAvailable at timeout : "));
+            Serial.println( bytesAvailable );
+
+            // This read has failed
+            return false;
+        }
+
+        // SDS011_MAX_READ_TIME is at least 2s, prevent blocking behaviour
+        delay(SDS011_CHECKWAIT_DELAY);
+    }
+
+    return true;
+}
+
+/**
+* @brief Read a message from serial port.
+* @param [in] rxBufferPtr - ( pointer to ) buffer for received bytes
+* @return None
+* @details This function is called when we believe there is a whole
+* message in the serial port queue, but we do not yet know where in
+* the queue it begins. Read enough bytes from the queue to be sure
+* we have put the expected message in the buffer.
+*/
+
+void sensors::sensorSDS011GetMsgBytes( int* rxBufferPtr )
+{
+int i=0;
+
+    for( i=0 ; i<(2*sensors::SDS011_RESP_SIZE) ; i++)
+    {
+        rxBufferPtr[i] = sensors::sensorSDS011ReadByte();
+
+        if( 0xDEADBEEF == rxBufferPtr[i] )
+        {
+            // our bytes have disappeared, we're doomed...
+            Serial.println(F("SDS011 UART buffer problem, exiting"));
+            exit( EXIT_CODE_SDS011_UARTBUFFER );
+        }
+    }
+}
+
+/**
 * @brief Communicate with the sensor to get new readings
 * @param [in] None
 * @return true if all readings OK, else false
@@ -247,12 +239,11 @@ int     msgChk = 0;
 
 bool sensors::sensorSDS011GetReadings( void )
 {
-int  rxBuffer[2*SDS011_RESP_SIZE + 1];
-int  *msgPtr;
-int  bytesAvailable = 0xDEADBEEF;
-bool retVal         = false;
-bool messageRxed    = false;
-int  i=0;
+int     rxBuffer[2*SDS011_RESP_SIZE + 1];
+int*    msgPtr = NULL;
+bool    retVal         = false;
+bool    messageRxed    = false;
+int     i=0;
 
     // Because the Arduino/ESP32 uart handling offers no better way of doing this,
     // ditch old queued characters ( there's a queue on top of the rxfifo...) by
@@ -265,33 +256,18 @@ int  i=0;
     SDS011SerialPtr->flush();
 
     // We need at least a whole message worth of bytes to be available -
-    // we don't want the tail end of one message and the start of another.
-    while( (bytesAvailable = SDS011SerialPtr->available()) < 2*sensors::SDS011_RESP_SIZE )
-    {
-        if( !sensors::sensorSDS011Checkwait() )
-        {
-            Serial.print(F("SDS011 bytesAvailable at timeout : "));
-            Serial.println( bytesAvailable );
+    // we don't want just the tail end of one message and the start of another.
 
-            // This read has failed
-            return false;
-        }
+    if( !sensors::sensorSDS011WaitForMessage() )
+    {
+        return false;
     }
 
     // Messages are sent at 1 Hz, and we've received two messages worth of data.
     // Therefore there should be a contiguous message in here somewhere...
     // Read all the bytes that we have.
-    for( i=0 ; i<(2*sensors::SDS011_RESP_SIZE) ; i++)
-    {
-        rxBuffer[i] = sensors::sensorSDS011ReadByte();
 
-        if( 0xDEADBEEF == rxBuffer[i] )
-        {
-            // our bytes have disappeared, we're doomed...
-            Serial.println(F("SDS011 UART buffer problem, exiting"));
-            exit( EXIT_CODE_SDS011_UARTBUFFER );
-        }
-    }
+    sensors::sensorSDS011GetMsgBytes( rxBuffer );
 
     // find the message - it must start in the first half of the buffer
     i=0;
@@ -313,6 +289,8 @@ int  i=0;
 
     if( messageRxed )
     {
+        Serial.print(F("SDS011 Message found"));
+
         // Extract the readings from the message
         sensorSDS011LatestReadings.timestamp = os_getTime();
 
@@ -345,8 +323,6 @@ int  i=0;
 
         Serial.println(F("SDS011 Failed to find message"));
     }
-
-    sensors::sensorSDS011Sleep();
 
     return retVal;
 }
@@ -391,7 +367,7 @@ bool        retVal = true;
 
 void sensors::sensorSDS011Wakeup( void )
 {
-    Serial.print(F("Waking up SDS011 at : "));
+    Serial.print(F("SDS011 waking up at : "));
     Serial.println( millis() );
 
     if( !(sensorSDS011SendCommand( sensors::SDS011_CMDID_WORK ) ) )
@@ -416,6 +392,7 @@ void sensors::sensorSDS011Wakeup( void )
 
 void sensors::sensorSDS011Sleep( void )
 {
+    
     if( ( sensors::SDS011_WAKEUP + sensors::SDS011_MAX_READ_TIME ) < ( ttnotaa::TX_INTERVAL*1000 ) )
     {
         Serial.println( F("SDS011 Sleeping"));
@@ -427,5 +404,6 @@ void sensors::sensorSDS011Sleep( void )
             exit( EXIT_CODE_SDS011_SENSORCOMMSFAILED );
         }
     }
+
     // else don't sleep because there would not be enough time to wake up
 }

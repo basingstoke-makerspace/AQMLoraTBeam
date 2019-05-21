@@ -179,6 +179,7 @@ void onEvent (ev_t ev)
                 // Schedule next transmission
                 // No sensor reading is done at this time, only sending of latest readings.
                 os_setTimedCallback(&sendjob, sendTime, do_send);
+
             }
             break;
         case EV_LOST_TSYNC:
@@ -312,10 +313,6 @@ void do_sensorread_phase2(osjob_t* j)
         {
             Serial.println(F("ReadPhase2 READING SKIPPED - trigger failure"));
         }
-
-        // Put the sensors to sleep, if that's a meaningful concept
-
-        sensors::sensorSleep();
     }
     else
     {

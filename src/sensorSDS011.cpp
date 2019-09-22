@@ -258,71 +258,71 @@ int     i=0;
     // We need at least a whole message worth of bytes to be available -
     // we don't want just the tail end of one message and the start of another.
 
-    if( !sensors::sensorSDS011WaitForMessage() )
+    if( sensors::sensorSDS011WaitForMessage() )
     {
-        return false;
-    }
+        // Messages are sent at 1 Hz, and we've received two messages worth of data.
+        // Therefore there should be a contiguous message in here somewhere...
+        // Read all the bytes that we have.
 
-    // Messages are sent at 1 Hz, and we've received two messages worth of data.
-    // Therefore there should be a contiguous message in here somewhere...
-    // Read all the bytes that we have.
+        sensors::sensorSDS011GetMsgBytes( rxBuffer );
 
-    sensors::sensorSDS011GetMsgBytes( rxBuffer );
-
-    // find the message - it must start in the first half of the buffer
-    i=0;
-    while( i<sensors::SDS011_RESP_SIZE )
-    {
-        if( sensors::SDS011_RESP_LEAD_BYTE  == rxBuffer[i] &&
-            sensors::SDS011_RESP_CMD_BYTE   == rxBuffer[i+sensors::SDS011_RESP_CMD_POS] &&
-            sensors::SDS011_RESP_TAIL_BYTE  == rxBuffer[i+sensors::SDS011_RESP_TAIL_POS])
+        // find the message - it must start in the first half of the buffer
+        i=0;
+        while( i<sensors::SDS011_RESP_SIZE )
         {
-            msgPtr = &rxBuffer[i];
+            if( sensors::SDS011_RESP_LEAD_BYTE  == rxBuffer[i] &&
+                sensors::SDS011_RESP_CMD_BYTE   == rxBuffer[i+sensors::SDS011_RESP_CMD_POS] &&
+                sensors::SDS011_RESP_TAIL_BYTE  == rxBuffer[i+sensors::SDS011_RESP_TAIL_POS])
+            {
+                msgPtr = &rxBuffer[i];
 
-            messageRxed = sensors::sensorSDS011ValidateMsg( msgPtr );
+                messageRxed = sensors::sensorSDS011ValidateMsg( msgPtr );
 
-            break;
+                break;
+            }
+
+            i++;
         }
 
-        i++;
+        if( messageRxed )
+        {
+            Serial.print(F("SDS011 Message found"));
+
+            // Extract the readings from the message
+            sensorSDS011LatestReadings.timestamp = os_getTime();
+
+            sensorSDS011LatestReadings.pm2v5 =  ( msgPtr[sensors::SDS011_RESP_PM2V5HI_POS]*256 +
+                                                msgPtr[sensors::SDS011_RESP_PM2V5LO_POS] ) / 10;
+
+            sensorSDS011LatestReadings.pm10  =  ( msgPtr[sensors::SDS011_RESP_PM10HI_POS]*256 +
+                                                msgPtr[sensors::SDS011_RESP_PM10LO_POS] ) / 10;
+
+            sensorSDS011LatestReadings.id    =    msgPtr[sensors::SDS011_RESP_ID1_POS]*256 +
+                                                msgPtr[sensors::SDS011_RESP_ID0_POS] ;
+
+            Serial.print(F("SDS011 Readings : "));
+            Serial.print( sensorSDS011LatestReadings.pm2v5 );
+            Serial.print(F(", "));
+            Serial.print( sensorSDS011LatestReadings.pm10 );
+            Serial.print(F(", "));
+            Serial.println( sensorSDS011LatestReadings.id );
+
+            retVal = true;
+
+        }
+        else
+        {
+            // there is no valid reading any more
+            sensorSDS011LatestReadings.timestamp    = 0;
+            sensorSDS011LatestReadings.pm2v5        = 0xDEADBEEF;
+            sensorSDS011LatestReadings.pm10         = 0xDEADBEEF;
+            sensorSDS011LatestReadings.id           = 0xDEADBEEF;
+
+            Serial.println(F("SDS011 Failed to find message"));
+        }
     }
 
-    if( messageRxed )
-    {
-        Serial.print(F("SDS011 Message found"));
-
-        // Extract the readings from the message
-        sensorSDS011LatestReadings.timestamp = os_getTime();
-
-        sensorSDS011LatestReadings.pm2v5 =  ( msgPtr[sensors::SDS011_RESP_PM2V5HI_POS]*256 +
-                                              msgPtr[sensors::SDS011_RESP_PM2V5LO_POS] ) / 10;
-
-        sensorSDS011LatestReadings.pm10  =  ( msgPtr[sensors::SDS011_RESP_PM10HI_POS]*256 +
-                                              msgPtr[sensors::SDS011_RESP_PM10LO_POS] ) / 10;
-
-        sensorSDS011LatestReadings.id    =    msgPtr[sensors::SDS011_RESP_ID1_POS]*256 +
-                                              msgPtr[sensors::SDS011_RESP_ID0_POS] ;
-
-        Serial.print(F("SDS011 Readings : "));
-        Serial.print( sensorSDS011LatestReadings.pm2v5 );
-        Serial.print(F(", "));
-        Serial.print( sensorSDS011LatestReadings.pm10 );
-        Serial.print(F(", "));
-        Serial.println( sensorSDS011LatestReadings.id );
-
-        retVal = true;
-
-    }
-    else
-    {
-        // there is no valid reading any more
-        sensorSDS011LatestReadings.timestamp    = 0;
-        sensorSDS011LatestReadings.pm2v5        = 0xDEADBEEF;
-        sensorSDS011LatestReadings.pm10         = 0xDEADBEEF;
-        sensorSDS011LatestReadings.id           = 0xDEADBEEF;
-
-        Serial.println(F("SDS011 Failed to find message"));
-    }
+    //else we did not receive two messages worth of data in the time available
 
     return retVal;
 }
